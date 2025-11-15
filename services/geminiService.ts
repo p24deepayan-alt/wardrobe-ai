@@ -84,6 +84,7 @@ interface GeneratedOutfit {
     name: string;
     occasion: string;
     itemIds: string[];
+    explanation: string;
 }
 
 export const generateOutfits = async (
@@ -116,7 +117,7 @@ export const generateOutfits = async (
     let prompt: string;
 
     if (options.isSurprise) {
-        prompt = `You are a creative and daring fashion stylist. From the provided wardrobe, create 3 unique and unexpected but stylish outfits. Ignore conventional rules and create something bold and inspiring. Ensure each outfit has a creative name and an appropriate occasion. Use only the item IDs provided from the wardrobe.
+        prompt = `You are a creative and daring fashion stylist. From the provided wardrobe, create 3 unique and unexpected but stylish outfits. Ignore conventional rules and create something bold and inspiring. Ensure each outfit has a creative name and an appropriate occasion. For each outfit, provide a quirky, fun, and insightful explanation (2-3 sentences) for why the unexpected combination is a fashion-forward statement. Use only the item IDs provided from the wardrobe.
     
     Wardrobe: ${wardrobeData}${historyPrompt}`;
     } else if (options.occasion && options.weather) {
@@ -127,7 +128,8 @@ export const generateOutfits = async (
     2. The weather is: ${options.weather.temperature}°${options.weather.unit} and ${options.weather.condition}.
     3. Combine items based on color theory, style compatibility, and fashion principles, appropriate for the weather and occasion.
     4. Ensure each outfit is practical and stylish. For example, don't suggest shorts in cold weather.
-    5. Use only the item IDs provided from the wardrobe.
+    5. For each outfit, provide a quirky and insightful explanation (2-3 sentences) for why the combination works from a style perspective.
+    6. Use only the item IDs provided from the wardrobe.
     
     Wardrobe: ${wardrobeData}${historyPrompt}`;
     } else {
@@ -151,8 +153,10 @@ export const generateOutfits = async (
                                 type: Type.ARRAY,
                                 items: { type: Type.STRING },
                                 description: 'An array of item IDs from the provided wardrobe that make up this outfit.'
-                            }
-                        }
+                            },
+                            explanation: { type: Type.STRING, description: 'A quirky, insightful explanation for why the outfit works.' }
+                        },
+                        required: ['name', 'occasion', 'itemIds', 'explanation']
                     }
                 }
             }

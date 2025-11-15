@@ -23,9 +23,19 @@ const OutfitCard: React.FC<{ outfit: Outfit, onTryOn: (outfit: Outfit) => void }
                 Try On
             </button>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
             {outfit.items.map(item => <ItemCard key={item.id} item={item} onClick={() => {}} />)}
         </div>
+        {outfit.explanation && (
+             <div className="p-3 bg-primary/5 rounded-lg border-l-4 border-primary/50">
+                <div className="flex items-start">
+                    <MagicWandIcon className="w-5 h-5 mr-3 text-primary flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-foreground/90">
+                        {outfit.explanation}
+                    </p>
+                </div>
+            </div>
+        )}
     </div>
 );
 
@@ -100,6 +110,7 @@ const DailyStyle: React.FC = () => {
                 id: `outfit-${Date.now()}-${index}`,
                 name: outfit.name,
                 occasion: outfit.occasion,
+                explanation: outfit.explanation,
                 items: outfit.itemIds.map(id => userWardrobe.find(item => item.id === id)).filter(Boolean) as ClothingItem[],
             }));
 

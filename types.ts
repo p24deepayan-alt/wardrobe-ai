@@ -24,6 +24,7 @@ export interface Outfit {
   name: string;
   items: ClothingItem[];
   occasion: string;
+  explanation: string;
 }
 
 export type UserRole = 'user' | 'admin';
