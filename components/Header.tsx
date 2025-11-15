@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import useAuth from '../hooks/useAuth';
-import { LogoutIcon, ChevronDownIcon, LogoIcon } from './icons';
+import { LogoutIcon, ChevronDownIcon, LogoIcon, FireIcon } from './icons';
 import ThemeSwitcher from './ThemeSwitcher';
 
 const Header: React.FC = () => {
@@ -30,6 +30,12 @@ const Header: React.FC = () => {
                     </div>
                     <div className="flex items-center">
                         <ThemeSwitcher className="mr-4" />
+                        {user.loginStreak && user.loginStreak > 1 && (
+                            <div className="flex items-center mr-4" title={`You're on a ${user.loginStreak}-day streak!`}>
+                                <FireIcon className="h-5 w-5 text-orange-500"/>
+                                <span className="text-sm font-bold text-orange-500 ml-1">{user.loginStreak}</span>
+                            </div>
+                        )}
                         <div className="relative" ref={dropdownRef}>
                             <button onClick={() => setDropdownOpen(!dropdownOpen)} className="flex items-center space-x-2 p-2 rounded-lg hover:bg-card focus:outline-none focus:ring-2 focus:ring-ring transition-colors">
                                 <img className="h-8 w-8 rounded-full" src={user.avatarUrl} alt={user.name} />

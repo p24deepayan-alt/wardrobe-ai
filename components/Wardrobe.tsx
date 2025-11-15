@@ -7,6 +7,8 @@ import { analyzeImage } from '../services/geminiService';
 import { getItemsByUserId, addItems, updateItem, deleteItem } from '../services/storageService';
 import useAuth from '../hooks/useAuth';
 import EditItemModal from './EditItemModal';
+import { checkAndAwardAchievements } from '../services/achievementService';
+
 
 // Helper to convert file to base64
 const fileToBase64 = (file: File): Promise<string> => {
@@ -179,7 +181,7 @@ const AddItemModal: React.FC<{ onClose: () => void, onAddItems: (items: Clothing
 
 
 const Wardrobe: React.FC = () => {
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
     const [wardrobeItems, setWardrobeItems] = useState<ClothingItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -200,8 +202,13 @@ const Wardrobe: React.FC = () => {
     }, [user]);
 
     const handleAddItems = async (items: ClothingItem[]) => {
+        if (!user) return;
         await addItems(items);
-        setWardrobeItems(prev => [...items, ...prev]);
+        const newWardrobe = [...items, ...wardrobeItems];
+        setWardrobeItems(newWardrobe);
+
+        // Check for achievements
+        checkAndAwardAchievements(user, { wardrobeSize: newWardrobe.length }, updateUser);
     };
 
     const handleUpdateItem = async (updated: ClothingItem) => {

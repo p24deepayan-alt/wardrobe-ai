@@ -63,13 +63,40 @@ const App: React.FC = () => {
         sessionStorage.setItem('hasVisited', 'true');
         setFirstVisit(false);
     };
+    
+    const isSameDay = (d1: Date, d2: Date) => {
+        return d1.getFullYear() === d2.getFullYear() &&
+               d1.getMonth() === d2.getMonth() &&
+               d1.getDate() === d2.getDate();
+    };
+
+    const isYesterday = (d1: Date, d2: Date) => {
+        const yesterday = new Date(d2);
+        yesterday.setDate(yesterday.getDate() - 1);
+        return isSameDay(d1, yesterday);
+    };
 
     const login = (loggedInUser: User) => {
-        const userWithLoginData = {
+        const today = new Date();
+        let currentStreak = loggedInUser.loginStreak || 0;
+
+        // Check if the last login was yesterday to continue the streak
+        if (loggedInUser.lastLogin && isYesterday(new Date(loggedInUser.lastLogin), today)) {
+            currentStreak += 1;
+        } 
+        // If last login was not today or yesterday, reset streak
+        else if (!loggedInUser.lastLogin || !isSameDay(new Date(loggedInUser.lastLogin), today)) {
+            currentStreak = 1;
+        }
+        // If last login was today, streak remains the same.
+        
+        const userWithLoginData: User = {
             ...loggedInUser,
-            lastLogin: new Date(),
-            loginHistory: [...(loggedInUser.loginHistory || []), new Date()].slice(-100) // Keep last 100 logins
+            lastLogin: today,
+            loginHistory: [...(loggedInUser.loginHistory || []), today].slice(-100), // Keep last 100 logins
+            loginStreak: currentStreak,
         };
+
         setUser(userWithLoginData);
         setRole('user');
         setSessionUser(userWithLoginData);

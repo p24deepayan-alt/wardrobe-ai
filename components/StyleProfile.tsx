@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import useAuth from '../hooks/useAuth';
 import { CameraIcon, TrashIcon, SpinnerIcon } from './icons';
+import { achievementsList } from '../services/achievementService';
+import AchievementBadge from './AchievementBadge';
 
 // Helper to convert file to base64
 const fileToBase64 = (file: File): Promise<string> => {
@@ -54,46 +56,66 @@ const StyleProfile: React.FC = () => {
     
     const currentImage = newImage || user?.tryOnImageUrl;
 
-    return (
-        <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
-            <h1 className="text-2xl font-bold text-card-foreground mb-2">Style Profile</h1>
-            <p className="text-foreground/70 mb-6">Upload a photo of yourself for the Virtual Try-On feature. A clear, front-facing photo works best.</p>
+    const userAchievements = achievementsList.filter(ach => user?.achievements?.includes(ach.id));
 
-            <div className="w-full max-w-sm mx-auto space-y-4">
-                <div className="aspect-square w-full bg-background/50 rounded-lg border-2 border-dashed border-border flex items-center justify-center relative overflow-hidden">
-                    {currentImage ? (
-                        <img src={currentImage} alt="Your profile" className="h-full w-full object-cover" />
-                    ) : (
-                        <div className="text-center text-foreground/50 p-4">
-                            <CameraIcon className="w-12 h-12 mx-auto mb-2" />
-                            <p>No Photo Uploaded</p>
+    return (
+        <div className="space-y-8">
+            <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
+                <h1 className="text-2xl font-bold text-card-foreground mb-2">Virtual Try-On Profile</h1>
+                <p className="text-foreground/70 mb-6">Upload a photo of yourself for the Virtual Try-On feature. A clear, front-facing photo works best.</p>
+
+                <div className="w-full max-w-sm mx-auto space-y-4">
+                    <div className="aspect-square w-full bg-background/50 rounded-lg border-2 border-dashed border-border flex items-center justify-center relative overflow-hidden">
+                        {currentImage ? (
+                            <img src={currentImage} alt="Your profile" className="h-full w-full object-cover" />
+                        ) : (
+                            <div className="text-center text-foreground/50 p-4">
+                                <CameraIcon className="w-12 h-12 mx-auto mb-2" />
+                                <p>No Photo Uploaded</p>
+                            </div>
+                        )}
+                        {isLoading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><SpinnerIcon className="w-8 h-8"/></div>}
+                    </div>
+                    
+                    {error && <p className="text-sm text-accent text-center">{error}</p>}
+                    
+                    <div className="flex gap-3">
+                        <label className="flex-1 cursor-pointer px-4 py-2.5 bg-input text-foreground font-semibold rounded-lg hover:bg-border transition-colors text-center">
+                            {user?.tryOnImageUrl ? 'Change Photo' : 'Upload Photo'}
+                            <input type="file" accept="image/jpeg, image/png" onChange={handleFileChange} className="hidden"/>
+                        </label>
+                        {user?.tryOnImageUrl && !newImage && (
+                            <button onClick={handleRemove} className="p-2.5 bg-accent/10 text-accent rounded-lg hover:bg-accent/20 transition-colors">
+                                <TrashIcon className="w-5 h-5"/>
+                            </button>
+                        )}
+                    </div>
+
+                    {newImage && (
+                        <div className="flex gap-3">
+                            <button onClick={() => setNewImage(null)} className="flex-1 px-4 py-2.5 bg-input text-foreground rounded-lg hover:bg-border transition-colors">
+                                Cancel
+                            </button>
+                            <button onClick={handleSave} className="flex-1 px-4 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition-colors">
+                                Save Changes
+                            </button>
                         </div>
                     )}
-                     {isLoading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><SpinnerIcon className="w-8 h-8"/></div>}
                 </div>
-                
-                {error && <p className="text-sm text-accent text-center">{error}</p>}
-                
-                <div className="flex gap-3">
-                    <label className="flex-1 cursor-pointer px-4 py-2.5 bg-input text-foreground font-semibold rounded-lg hover:bg-border transition-colors text-center">
-                        {user?.tryOnImageUrl ? 'Change Photo' : 'Upload Photo'}
-                        <input type="file" accept="image/jpeg, image/png" onChange={handleFileChange} className="hidden"/>
-                    </label>
-                    {user?.tryOnImageUrl && !newImage && (
-                        <button onClick={handleRemove} className="p-2.5 bg-accent/10 text-accent rounded-lg hover:bg-accent/20 transition-colors">
-                            <TrashIcon className="w-5 h-5"/>
-                        </button>
-                    )}
-                </div>
+            </div>
 
-                {newImage && (
-                    <div className="flex gap-3">
-                        <button onClick={() => setNewImage(null)} className="flex-1 px-4 py-2.5 bg-input text-foreground rounded-lg hover:bg-border transition-colors">
-                            Cancel
-                        </button>
-                        <button onClick={handleSave} className="flex-1 px-4 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition-colors">
-                            Save Changes
-                        </button>
+             <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
+                <h2 className="text-2xl font-bold text-card-foreground mb-4">Achievements</h2>
+                {userAchievements.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {userAchievements.map(achievement => (
+                            <AchievementBadge key={achievement.id} achievement={achievement} />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-8 border-2 border-dashed border-border/50 rounded-lg">
+                        <p className="text-foreground/70">Your achievements will appear here.</p>
+                        <p className="text-foreground/50 text-sm mt-1">Start by adding items to your wardrobe!</p>
                     </div>
                 )}
             </div>

@@ -58,13 +58,12 @@ const DailyStyle: React.FC = () => {
     const [userWardrobe, setUserWardrobe] = useState<ClothingItem[]>([]);
     const [savedOutfits, setSavedOutfits] = useState<Outfit[]>([]);
     const [weather, setWeather] = useState<Weather>({ temperature: 20, unit: 'C', condition: 'Sunny' });
-    const [occasion, setOccasion] = useState('Casual');
+    const [occasion, setOccasion] = useState('A casual brunch with friends');
     const [selectedOutfitForTryOn, setSelectedOutfitForTryOn] = useState<Outfit | null>(null);
     const [useAutoWeather, setUseAutoWeather] = useState(true);
     const [isFetchingWeather, setIsFetchingWeather] = useState(false);
     const [autoWeatherError, setAutoWeatherError] = useState('');
 
-    const occasions = ['Casual', 'Work', 'Evening', 'Sporty', 'Formal'];
     const conditions = ['Sunny', 'Cloudy', 'Rainy'];
 
     const getOutfitSignature = (itemIds: string[]) => itemIds.sort().join(',');
@@ -114,6 +113,7 @@ const DailyStyle: React.FC = () => {
     }, [useAutoWeather]);
 
     const handleGenerate = async (isSurprise: boolean = false) => {
+        if (!user) return;
         if (userWardrobe.length < 3) {
             setError("Please add at least 3 items to your wardrobe to generate outfits.");
             return;
@@ -134,6 +134,7 @@ const DailyStyle: React.FC = () => {
                 name: outfit.name,
                 occasion: outfit.occasion,
                 explanation: outfit.explanation,
+                userId: user.id,
                 items: outfit.itemIds.map(id => userWardrobe.find(item => item.id === id)).filter(Boolean) as ClothingItem[],
             }));
 
@@ -157,7 +158,8 @@ const DailyStyle: React.FC = () => {
         if (savedOutfitSignatures.has(signature)) return;
 
         try {
-            const newSavedOutfit = await addSavedOutfit(outfitToSave, user.id);
+            const { id, ...outfitData } = outfitToSave;
+            const newSavedOutfit = await addSavedOutfit(outfitData, user.id);
             setSavedOutfits(prev => [...prev, newSavedOutfit]);
         } catch (error) {
             console.error("Failed to save outfit:", error);
@@ -194,35 +196,49 @@ const DailyStyle: React.FC = () => {
                         {isFetchingWeather && <SpinnerIcon className="w-4 h-4 text-primary"/>}
                     </div>
                     {autoWeatherError && <p className="text-xs text-accent text-center">{autoWeatherError}</p>}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                          <label htmlFor="occasion-select" className="block text-sm font-medium text-foreground/80 mb-1">Occasion</label>
-                          <select id="occasion-select" value={occasion} onChange={e => setOccasion(e.target.value)}
-                              className="w-full bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring px-3 py-2 disabled:opacity-50"
-                              disabled={isLoading}
-                          >
-                              {occasions.map(o => <option key={o} value={o} className="bg-popover text-popover-foreground">{o}</option>)}
-                          </select>
-                      </div>
-                      <div>
-                          <label htmlFor="temperature-input" className="block text-sm font-medium text-foreground/80 mb-1">Temperature (°C)</label>
-                          <input type="number" id="temperature-input" value={weather.temperature} onChange={e => setWeather(w => ({...w, temperature: parseInt(e.target.value, 10) || 0}))}
-                              className="w-full bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring px-3 py-2 disabled:opacity-50"
-                              disabled={useAutoWeather || isLoading}
-                          />
-                      </div>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-foreground/80 mb-2">Condition</label>
-                        <div className="flex gap-2">
-                            {conditions.map(c => (
-                                <button key={c} onClick={() => setWeather(w => ({...w, condition: c}))} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-full transition-colors disabled:opacity-50 ${weather.condition === c ? 'bg-primary text-primary-foreground font-semibold' : 'bg-input text-foreground/80 hover:bg-border'}`}
-                                disabled={useAutoWeather || isLoading}>
-                                    <WeatherIcon condition={c} />
-                                    {c}
-                                </button>
-                            ))}
+                    
+                    <div className="space-y-4">
+                        <div>
+                            <label htmlFor="occasion-input" className="block text-sm font-medium text-foreground/80 mb-1">Describe the Occasion</label>
+                            <textarea
+                                id="occasion-input"
+                                value={occasion}
+                                onChange={e => setOccasion(e.target.value)}
+                                placeholder="e.g., A casual brunch with friends, a formal wedding..."
+                                className="w-full bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring px-3 py-2 disabled:opacity-50 min-h-[60px] resize-none"
+                                disabled={isLoading}
+                                rows={2}
+                            />
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor="temperature-input" className="block text-sm font-medium text-foreground/80 mb-1">Temperature (°C)</label>
+                                <input 
+                                    type="number" 
+                                    id="temperature-input" 
+                                    value={weather.temperature} 
+                                    onChange={e => setWeather(w => ({...w, temperature: parseInt(e.target.value, 10) || 0}))}
+                                    className="w-full bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring px-3 py-2 disabled:opacity-50"
+                                    disabled={useAutoWeather || isLoading}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-foreground/80 mb-1">Condition</label>
+                                <div className="flex gap-2 h-full items-center">
+                                    {conditions.map(c => (
+                                        <button 
+                                            key={c} 
+                                            onClick={() => setWeather(w => ({...w, condition: c}))} 
+                                            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-full transition-colors disabled:opacity-50 ${weather.condition === c ? 'bg-primary text-primary-foreground font-semibold' : 'bg-input text-foreground/80 hover:bg-border'}`}
+                                            disabled={useAutoWeather || isLoading}
+                                        >
+                                            <WeatherIcon condition={c} />
+                                            {c}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -250,7 +266,7 @@ const DailyStyle: React.FC = () => {
 
                     {!isLoading && !error && outfits.length === 0 && (
                         <div className="text-center p-10 text-foreground/70">
-                            <p>Select your occasion, set the weather, and let our AI be your personal stylist.</p>
+                            <p>Describe your occasion, set the weather, and let our AI be your personal stylist.</p>
                         </div>
                     )}
 

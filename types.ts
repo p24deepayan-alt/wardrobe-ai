@@ -25,6 +25,9 @@ export interface Outfit {
   items: ClothingItem[];
   occasion: string;
   explanation: string;
+  userId: string; // The ID of the user who created/saved it
+  isPublic?: boolean;
+  likes?: number;
 }
 
 export type UserRole = 'user' | 'admin';
@@ -41,6 +44,8 @@ export interface User {
   tryOnImageUrl?: string; // For Virtual Try-On feature
   lastLogin?: Date;
   loginHistory?: Date[];
+  loginStreak?: number;
+  achievements?: string[];
 }
 
 export interface ShoppingSuggestion {
@@ -68,4 +73,12 @@ export interface SeasonalAnalysis {
     name: string;
     description: string;
   }[];
+}
+
+export type AchievementID = 'novice_collector' | 'fashionista' | 'style_savant' | 'outfit_architect' | 'social_butterfly';
+
+export interface Achievement {
+    id: AchievementID;
+    title: string;
+    description: string;
 }

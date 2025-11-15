@@ -5,9 +5,10 @@ import Enhancements from './Enhancements';
 import StyleProfile from './StyleProfile';
 import SavedOutfits from './SavedOutfits';
 import SeasonalSwap from './SeasonalSwap';
-import { WardrobeIcon, StyleIcon, EnhanceIcon, UserIcon, BookmarkIcon, LeafIcon } from './icons';
+import CommunityFeed from './CommunityFeed';
+import { WardrobeIcon, StyleIcon, EnhanceIcon, UserIcon, BookmarkIcon, LeafIcon, GlobeIcon } from './icons';
 
-type Tab = 'wardrobe' | 'style' | 'enhancements' | 'profile' | 'saved' | 'seasonal';
+type Tab = 'wardrobe' | 'style' | 'enhancements' | 'profile' | 'saved' | 'seasonal' | 'community';
 
 const UserDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('wardrobe');
@@ -26,6 +27,8 @@ const UserDashboard: React.FC = () => {
         return <SavedOutfits />;
       case 'seasonal':
         return <SeasonalSwap />;
+      case 'community':
+        return <CommunityFeed />;
       default:
         return <Wardrobe />;
     }
@@ -53,6 +56,7 @@ const UserDashboard: React.FC = () => {
             <NavItem tabName="wardrobe" icon={<WardrobeIcon className="h-5 w-5"/>} label="My Wardrobe" />
             <NavItem tabName="style" icon={<StyleIcon className="h-5 w-5"/>} label="Daily Style" />
             <NavItem tabName="saved" icon={<BookmarkIcon className="h-5 w-5"/>} label="Saved Outfits" />
+            <NavItem tabName="community" icon={<GlobeIcon className="h-5 w-5"/>} label="Community" />
             <NavItem tabName="seasonal" icon={<LeafIcon className="h-5 w-5"/>} label="Seasonal Swap" />
             <NavItem tabName="enhancements" icon={<EnhanceIcon className="h-5 w-5"/>} label="Enhancements" />
             <NavItem tabName="profile" icon={<UserIcon className="h-5 w-5"/>} label="Style Profile" />

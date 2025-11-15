@@ -1,7 +1,7 @@
 import type { User, ClothingItem, Outfit } from '../types';
 
 const DB_NAME = 'ChromaDB';
-const DB_VERSION = 2; // Incremented version for schema change
+const DB_VERSION = 3; // Incremented version for schema change
 const USERS_STORE = 'users';
 const ITEMS_STORE = 'items';
 const SAVED_OUTFITS_STORE = 'saved_outfits';
@@ -51,6 +51,13 @@ const initDB = (): Promise<IDBDatabase> => {
             if (!db.objectStoreNames.contains(SAVED_OUTFITS_STORE)) {
                 const savedOutfitsStore = db.createObjectStore(SAVED_OUTFITS_STORE, { keyPath: 'id' });
                 savedOutfitsStore.createIndex('userId', 'userId', { unique: false });
+                savedOutfitsStore.createIndex('isPublic', 'isPublic', { unique: false });
+            } else {
+                // For upgrades from version 2
+                const savedOutfitsStore = (event.target as IDBOpenDBRequest).transaction?.objectStore(SAVED_OUTFITS_STORE);
+                if (savedOutfitsStore && !savedOutfitsStore.indexNames.contains('isPublic')) {
+                     savedOutfitsStore.createIndex('isPublic', 'isPublic', { unique: false });
+                }
             }
         };
     });
@@ -207,18 +214,67 @@ export const getAllSavedOutfits = async (): Promise<(Outfit & { userId: string }
     return promisifyRequest(store.getAll());
 }
 
-export const addSavedOutfit = async (outfit: Outfit, userId: string): Promise<Outfit> => {
+export const getPublicOutfits = async (): Promise<(Outfit & { creator: User })[]> => {
+    const db = await initDB();
+    const transaction = db.transaction([SAVED_OUTFITS_STORE, USERS_STORE], 'readonly');
+    const outfitsStore = transaction.objectStore(SAVED_OUTFITS_STORE);
+    const usersStore = transaction.objectStore(USERS_STORE);
+    
+    const publicOutfitsIndex = outfitsStore.index('isPublic');
+    const publicOutfits = await promisifyRequest(publicOutfitsIndex.getAll(IDBKeyRange.only(true)));
+    
+    const users = await promisifyRequest(usersStore.getAll());
+    const userMap = new Map(users.map(u => [u.id, u]));
+
+    return publicOutfits
+        .map(outfit => ({
+            ...outfit,
+            creator: userMap.get(outfit.userId)!,
+        }))
+        .filter(outfit => outfit.creator) // Ensure creator exists
+        .sort((a, b) => b.id.localeCompare(a.id)); // Sort by most recent
+};
+
+export const addSavedOutfit = async (outfit: Omit<Outfit, 'id' | 'userId'>, userId: string): Promise<Outfit> => {
     const db = await initDB();
     const transaction = db.transaction(SAVED_OUTFITS_STORE, 'readwrite');
     const store = transaction.objectStore(SAVED_OUTFITS_STORE);
 
-    const savedOutfit: Outfit & { userId: string } = {
+    const savedOutfit: Outfit = {
         ...outfit,
         id: `saved-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         userId,
+        isPublic: false,
+        likes: 0,
     };
     await promisifyRequest(store.add(savedOutfit));
     return savedOutfit;
+};
+
+export const publishOutfit = async (outfitId: string): Promise<Outfit> => {
+    const db = await initDB();
+    const transaction = db.transaction(SAVED_OUTFITS_STORE, 'readwrite');
+    const store = transaction.objectStore(SAVED_OUTFITS_STORE);
+    const outfit = await promisifyRequest(store.get(outfitId));
+    if (outfit) {
+        outfit.isPublic = true;
+        await promisifyRequest(store.put(outfit));
+        return outfit;
+    }
+    throw new Error("Outfit not found");
+};
+
+export const likeOutfit = async (outfitId: string): Promise<number> => {
+    const db = await initDB();
+    const transaction = db.transaction(SAVED_OUTFITS_STORE, 'readwrite');
+    const store = transaction.objectStore(SAVED_OUTFITS_STORE);
+    const outfit = await promisifyRequest(store.get(outfitId));
+    if (outfit) {
+        outfit.likes = (outfit.likes || 0) + 1;
+        await promisifyRequest(store.put(outfit));
+        return outfit.likes;
+    }
+    throw new Error("Outfit not found");
 };
 
 export const deleteSavedOutfit = async (outfitId: string): Promise<void> => {
@@ -241,7 +297,11 @@ export const getSessionUser = (): User | null => {
     const userJson = localStorage.getItem('chroma_session_user');
     if (!userJson) return null;
     try {
-        return JSON.parse(userJson);
+        const user = JSON.parse(userJson);
+        // Ensure date objects are properly hydrated
+        if (user.lastLogin) user.lastLogin = new Date(user.lastLogin);
+        if (user.loginHistory) user.loginHistory = user.loginHistory.map((d: string) => new Date(d));
+        return user;
     } catch {
         return null;
     }
