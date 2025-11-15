@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { ClothingCategory } from '../types';
-import type { ClothingItem, Outfit, ShoppingSuggestion, Weather } from '../types';
+import type { ClothingItem, Outfit, ShoppingSuggestion, Weather, SeasonalAnalysis } from '../types';
 
 const API_KEY = process.env.API_KEY; 
 if (!API_KEY) {
@@ -271,5 +271,62 @@ export const generateVirtualTryOnImage = async (userImageBase64: string, clothin
     } catch (error) {
         console.error("Error generating virtual try-on image:", error);
         throw new Error("Failed to generate virtual try-on image. The AI model may be temporarily unavailable.");
+    }
+};
+
+export const getSeasonalAnalysis = async (items: ClothingItem[], season: string): Promise<SeasonalAnalysis> => {
+    const wardrobeData = JSON.stringify(items.map(i => ({ id: i.id, name: i.name, category: i.category, color: i.color, style: i.style })));
+    const currentYear = new Date().getFullYear();
+
+    const prompt = `You are an expert fashion stylist preparing a client's wardrobe for the upcoming season.
+    
+    Season: ${season}
+    Wardrobe: ${wardrobeData}
+    
+    Your tasks:
+    1.  Categorize every item from the wardrobe into one of three lists based on suitability for the '${season}' season:
+        -   'keepOutIds': Items that are perfect for this season.
+        -   'storeAwayIds': Items that are unsuitable for this season (e.g., heavy winter coats in summer).
+        -   'transitionalIds': Versatile items that can be worn during the transition period into or out of the season.
+    2.  Provide a brief, inspiring summary of key fashion trends for ${season} ${currentYear}.
+    3.  Based on the user's existing wardrobe, suggest 3 to 5 specific types of items they are missing to create a complete and stylish wardrobe for this season. These should be generic item types, not specific brands.
+
+    Provide the output as a single JSON object.`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: textModel,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        keepOutIds: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        storeAwayIds: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        transitionalIds: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        trendsSummary: { type: Type.STRING, description: `A summary of fashion trends for the specified season and year.` },
+                        missingPieces: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    name: { type: Type.STRING, description: "The name of the suggested missing item (e.g., 'White Linen Shirt')." },
+                                    description: { type: Type.STRING, description: "A brief reason why this item would be a good addition." }
+                                }
+                            }
+                        }
+                    },
+                    required: ['keepOutIds', 'storeAwayIds', 'transitionalIds', 'trendsSummary', 'missingPieces']
+                }
+            }
+        });
+
+        const jsonString = response.text;
+        return JSON.parse(jsonString);
+
+    } catch (error) {
+        console.error("Error getting seasonal analysis from Gemini:", error);
+        throw new Error("Failed to get seasonal analysis. The AI model could not process the request.");
     }
 };

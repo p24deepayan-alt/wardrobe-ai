@@ -56,3 +56,14 @@ export interface Weather {
   condition: string; // e.g., 'Sunny', 'Cloudy', 'Rainy'
   unit: 'C' | 'F';
 }
+
+export interface SeasonalAnalysis {
+  keepOutIds: string[];
+  storeAwayIds: string[];
+  transitionalIds: string[];
+  trendsSummary: string;
+  missingPieces: {
+    name: string;
+    description: string;
+  }[];
+}
