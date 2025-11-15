@@ -144,3 +144,11 @@ export const StarIcon: React.FC<{ className?: string }> = ({ className }) => (
 export const ShareIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
 );
+
+export const DnaIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14.5A3.5 3.5 0 0 1 7.5 11H12"/><path d="M16.5 11a3.5 3.5 0 0 1 0 7H12"/><path d="M12 11v7"/><path d="M12 4v2.5"/><path d="M4 9.5A3.5 3.5 0 0 1 7.5 6H12"/><path d="M16.5 6a3.5 3.5 0 0 1 0 7H12"/></svg>
+);
+
+export const TargetIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+);

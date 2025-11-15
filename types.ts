@@ -32,6 +32,27 @@ export interface Outfit {
 
 export type UserRole = 'user' | 'admin';
 
+export interface StyleDNA {
+  coreAesthetic: {
+    title: string;
+    description: string;
+  };
+  colorPalette: {
+    name: string;
+    colors: string[];
+    description: string;
+  };
+  styleGaps: {
+    name: string;
+    reason: string;
+  }[];
+  keyPieces: {
+    itemId: string;
+    reason: string;
+  }[];
+}
+
+
 export interface User {
   id: string;
   name: string;
@@ -46,6 +67,7 @@ export interface User {
   loginHistory?: Date[];
   loginStreak?: number;
   achievements?: string[];
+  styleDna?: StyleDNA;
 }
 
 export interface ShoppingSuggestion {

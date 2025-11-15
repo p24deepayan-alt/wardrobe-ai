@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { ClothingCategory } from '../types';
-import type { ClothingItem, Outfit, ShoppingSuggestion, Weather, SeasonalAnalysis } from '../types';
+import type { ClothingItem, Outfit, ShoppingSuggestion, Weather, SeasonalAnalysis, StyleDNA } from '../types';
 
 const API_KEY = process.env.API_KEY; 
 if (!API_KEY) {
@@ -8,6 +8,7 @@ if (!API_KEY) {
 }
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 const textModel = 'gemini-2.5-flash';
+const proModel = 'gemini-2.5-pro';
 const visionModel = 'gemini-2.5-flash-image';
 
 
@@ -80,7 +81,7 @@ export const analyzeImage = async (file: File): Promise<Partial<ClothingItem>> =
   throw new Error(`Failed to classify the item after ${MAX_ATTEMPTS} attempts. Please try a different image or add the item details manually.`);
 };
 
-interface GeneratedOutfit {
+export interface GeneratedOutfit {
     name: string;
     occasion: string;
     itemIds: string[];
@@ -328,5 +329,142 @@ export const getSeasonalAnalysis = async (items: ClothingItem[], season: string)
     } catch (error) {
         console.error("Error getting seasonal analysis from Gemini:", error);
         throw new Error("Failed to get seasonal analysis. The AI model could not process the request.");
+    }
+};
+
+export const getStyleDnaAnalysis = async (items: ClothingItem[]): Promise<StyleDNA> => {
+    if (items.length < 10) {
+        throw new Error("Please add at least 10 items to your wardrobe for an accurate Style DNA analysis.");
+    }
+    const wardrobeData = JSON.stringify(items.map(i => ({ id: i.id, name: i.name, category: i.category, color: i.color, style: i.style })));
+
+    const prompt = `You are a world-class fashion analyst with a keen eye for personal style. Analyze the provided wardrobe data to create a comprehensive "Style DNA" report for the user. The report should be insightful, positive, and empowering.
+
+    Wardrobe Data: ${wardrobeData}
+    
+    Your task is to generate a JSON object with the following structure:
+    1.  'coreAesthetic': Identify the user's primary style essence. Give it a creative, descriptive title (e.g., "Effortless Parisian Chic", "Modern Minimalist", "Vintage-Inspired Eclectic") and a one-paragraph description explaining this aesthetic based on the items.
+    2.  'colorPalette': Determine the user's dominant color palette. Give it a name (e.g., "Warm Earth Tones," "Cool Coastal Hues"), list the top 5-7 representative colors (as color names or hex codes), and write a short description of the palette's mood.
+    3.  'keyPieces': Identify up to 4 items that are the cornerstones of their wardrobe. For each, provide the 'itemId' and a 'reason' explaining why it's a key piece (e.g., versatility, unique style statement).
+    4.  'styleGaps': Based on the existing items, identify 2-3 potential gaps. For each gap, suggest a 'name' for the type of item that's missing (e.g., "A Versatile Blazer", "Classic White Sneakers") and a 'reason' explaining how it would enhance their collection and create more outfit possibilities.
+
+    Please provide a thoughtful and high-quality analysis.`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: proModel, // Use the more powerful model for deep analysis
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        coreAesthetic: {
+                            type: Type.OBJECT,
+                            properties: {
+                                title: { type: Type.STRING },
+                                description: { type: Type.STRING }
+                            }
+                        },
+                        colorPalette: {
+                            type: Type.OBJECT,
+                            properties: {
+                                name: { type: Type.STRING },
+                                colors: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                description: { type: Type.STRING }
+                            }
+                        },
+                        keyPieces: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    itemId: { type: Type.STRING },
+                                    reason: { type: Type.STRING }
+                                }
+                            }
+                        },
+                        styleGaps: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    name: { type: Type.STRING },
+                                    reason: { type: Type.STRING }
+                                }
+                            }
+                        }
+                    },
+                    required: ['coreAesthetic', 'colorPalette', 'keyPieces', 'styleGaps']
+                }
+            }
+        });
+        const jsonString = response.text;
+        return JSON.parse(jsonString);
+    } catch (error) {
+        console.error("Error getting Style DNA analysis:", error);
+        throw new Error("Failed to generate your Style DNA. The AI model may be temporarily busy. Please try again in a few moments.");
+    }
+};
+
+export const generateOutfitsForSingleItem = async (
+    itemToFocus: ClothingItem,
+    allItems: ClothingItem[]
+): Promise<GeneratedOutfit[]> => {
+    const wardrobeData = JSON.stringify(allItems.map(i => ({ id: i.id, name: i.name, category: i.category, color: i.color, style: i.style })));
+    const focusedItemData = JSON.stringify({ id: itemToFocus.id, name: itemToFocus.name, category: itemToFocus.category, color: itemToFocus.color, style: itemToFocus.style });
+
+    const prompt = `You are a creative stylist tasked with finding new ways to wear a specific item. From the provided wardrobe, create 3 diverse and stylish outfits that prominently feature the "Item to Focus".
+
+    Item to Focus: ${focusedItemData}
+    
+    Full Wardrobe: ${wardrobeData}
+
+    Constraints:
+    1. Every generated outfit MUST include the "Item to Focus".
+    2. Create varied looks (e.g., one casual, one smart-casual, one edgy).
+    3. Provide a creative name and a suitable occasion for each outfit.
+    4. For each outfit, provide an insightful explanation (2-3 sentences) for why the combination works.
+    5. Use only the item IDs provided from the full wardrobe.
+    `;
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: textModel,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            name: { type: Type.STRING, description: 'A creative name for the outfit.' },
+                            occasion: { type: Type.STRING, description: 'A suitable occasion for the outfit.' },
+                            itemIds: {
+                                type: Type.ARRAY,
+                                items: { type: Type.STRING },
+                                description: 'An array of item IDs from the provided wardrobe that make up this outfit.'
+                            },
+                            explanation: { type: Type.STRING, description: 'A quirky, insightful explanation for why the outfit works.' }
+                        },
+                        required: ['name', 'occasion', 'itemIds', 'explanation']
+                    }
+                }
+            }
+        });
+
+        const jsonString = response.text;
+        const generatedOutfits = JSON.parse(jsonString) as GeneratedOutfit[];
+
+        // Ensure the focused item is in every outfit, just in case the AI forgets.
+        return generatedOutfits.map(outfit => ({
+            ...outfit,
+            itemIds: [...new Set([...outfit.itemIds, itemToFocus.id])]
+        }));
+
+    } catch (error) {
+        console.error("Error generating single-item outfits:", error);
+        throw new Error("Failed to generate outfits for the selected item.");
     }
 };

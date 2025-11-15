@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import useAuth from '../hooks/useAuth';
-import { CameraIcon, TrashIcon, SpinnerIcon } from './icons';
+import { CameraIcon, TrashIcon, SpinnerIcon, DnaIcon } from './icons';
 import { achievementsList } from '../services/achievementService';
 import AchievementBadge from './AchievementBadge';
+import { getStyleDnaAnalysis } from '../services/geminiService';
+import { getItemsByUserId } from '../services/storageService';
+import type { ClothingItem } from '../types';
+import StyleDnaReport from './StyleDnaReport';
 
 // Helper to convert file to base64
 const fileToBase64 = (file: File): Promise<string> => {
@@ -19,6 +23,18 @@ const StyleProfile: React.FC = () => {
     const [newImage, setNewImage] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    
+    // State for Style DNA
+    const [isDnaLoading, setIsDnaLoading] = useState(false);
+    const [dnaError, setDnaError] = useState('');
+    const [wardrobe, setWardrobe] = useState<ClothingItem[]>([]);
+
+    useEffect(() => {
+        if (user) {
+            getItemsByUserId(user.id).then(setWardrobe);
+        }
+    }, [user]);
+
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -54,12 +70,53 @@ const StyleProfile: React.FC = () => {
         }
     };
     
+    const handleAnalyzeDna = async () => {
+        if (!user) return;
+        setIsDnaLoading(true);
+        setDnaError('');
+        try {
+            const analysis = await getStyleDnaAnalysis(wardrobe);
+            await updateUser({ ...user, styleDna: analysis });
+        } catch (err) {
+            setDnaError(err instanceof Error ? err.message : "An unknown error occurred.");
+        } finally {
+            setIsDnaLoading(false);
+        }
+    };
+
     const currentImage = newImage || user?.tryOnImageUrl;
 
     const userAchievements = achievementsList.filter(ach => user?.achievements?.includes(ach.id));
 
     return (
         <div className="space-y-8">
+            <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
+                <h1 className="text-2xl font-bold text-card-foreground mb-4">Style DNA</h1>
+                {user?.styleDna ? (
+                    <StyleDnaReport dna={user.styleDna} wardrobe={wardrobe} onReanalyze={handleAnalyzeDna} isReanalyzing={isDnaLoading} />
+                ) : (
+                    <div className="text-center">
+                        <p className="text-foreground/70 max-w-xl mx-auto mb-6">Discover your unique style identity. Our AI will analyze your entire wardrobe to reveal your core aesthetic, color palette, key pieces, and potential style gaps.</p>
+                        {dnaError && <p className="text-accent mb-4">{dnaError}</p>}
+                        <button
+                            onClick={handleAnalyzeDna}
+                            disabled={isDnaLoading || wardrobe.length < 10}
+                            className="px-6 py-3 bg-primary text-primary-foreground font-bold rounded-lg shadow-md hover:bg-primary/90 transition-all transform active:scale-95 flex items-center justify-center mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isDnaLoading ? (
+                                <SpinnerIcon className="w-6 h-6" />
+                            ) : (
+                                <>
+                                    <DnaIcon className="w-5 h-5 mr-2" />
+                                    Analyze My Style DNA
+                                </>
+                            )}
+                        </button>
+                        {wardrobe.length < 10 && <p className="text-xs text-foreground/60 mt-2">You need at least 10 items in your wardrobe to run an analysis.</p>}
+                    </div>
+                )}
+            </div>
+
             <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
                 <h1 className="text-2xl font-bold text-card-foreground mb-2">Virtual Try-On Profile</h1>
                 <p className="text-foreground/70 mb-6">Upload a photo of yourself for the Virtual Try-On feature. A clear, front-facing photo works best.</p>
