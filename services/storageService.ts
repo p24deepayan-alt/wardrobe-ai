@@ -1,9 +1,10 @@
-import type { User, ClothingItem } from '../types';
+import type { User, ClothingItem, Outfit } from '../types';
 
 const DB_NAME = 'ChromaDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Incremented version for schema change
 const USERS_STORE = 'users';
 const ITEMS_STORE = 'items';
+const SAVED_OUTFITS_STORE = 'saved_outfits';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -46,6 +47,10 @@ const initDB = (): Promise<IDBDatabase> => {
             if (!db.objectStoreNames.contains(ITEMS_STORE)) {
                 const itemsStore = db.createObjectStore(ITEMS_STORE, { keyPath: 'id' });
                 itemsStore.createIndex('userId', 'userId', { unique: false });
+            }
+            if (!db.objectStoreNames.contains(SAVED_OUTFITS_STORE)) {
+                const savedOutfitsStore = db.createObjectStore(SAVED_OUTFITS_STORE, { keyPath: 'id' });
+                savedOutfitsStore.createIndex('userId', 'userId', { unique: false });
             }
         };
     });
@@ -185,6 +190,44 @@ export const deleteItems = async (itemIds: string[]): Promise<void> => {
         transaction.onerror = () => reject(transaction.error);
     });
 };
+
+// SAVED OUTFIT FUNCTIONS
+export const getSavedOutfitsByUserId = async (userId: string): Promise<Outfit[]> => {
+    const db = await initDB();
+    const transaction = db.transaction(SAVED_OUTFITS_STORE, 'readonly');
+    const store = transaction.objectStore(SAVED_OUTFITS_STORE);
+    const index = store.index('userId');
+    return promisifyRequest(index.getAll(userId));
+};
+
+export const addSavedOutfit = async (outfit: Outfit, userId: string): Promise<Outfit> => {
+    const db = await initDB();
+    const transaction = db.transaction(SAVED_OUTFITS_STORE, 'readwrite');
+    const store = transaction.objectStore(SAVED_OUTFITS_STORE);
+
+    const savedOutfit: Outfit & { userId: string } = {
+        ...outfit,
+        id: `saved-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        userId,
+    };
+    await promisifyRequest(store.add(savedOutfit));
+    return savedOutfit;
+};
+
+export const deleteSavedOutfit = async (outfitId: string): Promise<void> => {
+    const db = await initDB();
+    const transaction = db.transaction(SAVED_OUTFITS_STORE, 'readwrite');
+    const store = transaction.objectStore(SAVED_OUTFITS_STORE);
+    await promisifyRequest(store.delete(outfitId));
+};
+
+export const updateSavedOutfit = async (outfit: Outfit): Promise<void> => {
+    const db = await initDB();
+    const transaction = db.transaction(SAVED_OUTFITS_STORE, 'readwrite');
+    const store = transaction.objectStore(SAVED_OUTFITS_STORE);
+    await promisifyRequest(store.put(outfit));
+};
+
 
 // SESSION FUNCTIONS (using localStorage for synchronous access on startup)
 export const getSessionUser = (): User | null => {

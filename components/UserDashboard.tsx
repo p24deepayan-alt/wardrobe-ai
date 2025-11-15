@@ -3,9 +3,10 @@ import Wardrobe from './Wardrobe';
 import DailyStyle from './DailyStyle';
 import Enhancements from './Enhancements';
 import StyleProfile from './StyleProfile';
-import { WardrobeIcon, StyleIcon, EnhanceIcon, UserIcon } from './icons';
+import SavedOutfits from './SavedOutfits';
+import { WardrobeIcon, StyleIcon, EnhanceIcon, UserIcon, BookmarkIcon } from './icons';
 
-type Tab = 'wardrobe' | 'style' | 'enhancements' | 'profile';
+type Tab = 'wardrobe' | 'style' | 'enhancements' | 'profile' | 'saved';
 
 const UserDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('wardrobe');
@@ -20,6 +21,8 @@ const UserDashboard: React.FC = () => {
         return <Enhancements />;
       case 'profile':
         return <StyleProfile />;
+      case 'saved':
+        return <SavedOutfits />;
       default:
         return <Wardrobe />;
     }
@@ -46,6 +49,7 @@ const UserDashboard: React.FC = () => {
         <nav className="flex md:flex-col p-2 space-x-2 md:space-x-0 md:space-y-2 bg-card border border-border rounded-xl shadow-lg">
             <NavItem tabName="wardrobe" icon={<WardrobeIcon className="h-5 w-5"/>} label="My Wardrobe" />
             <NavItem tabName="style" icon={<StyleIcon className="h-5 w-5"/>} label="Daily Style" />
+            <NavItem tabName="saved" icon={<BookmarkIcon className="h-5 w-5"/>} label="Saved Outfits" />
             <NavItem tabName="enhancements" icon={<EnhanceIcon className="h-5 w-5"/>} label="Enhancements" />
             <NavItem tabName="profile" icon={<UserIcon className="h-5 w-5"/>} label="Style Profile" />
         </nav>

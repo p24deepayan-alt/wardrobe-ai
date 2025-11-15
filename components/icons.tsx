@@ -101,3 +101,13 @@ export const SparklesIcon: React.FC<{ className?: string }> = ({ className }) =>
 export const MagicWandIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4V2"/><path d="M15 16v-2"/><path d="M12.07 14.93 14 13"/><path d="M9 16V8"/><path d="m9 4-3 3"/><path d="M19.07 14.93 14 10"/><path d="M22 12h-2"/><path d="M15 10V8"/><path d="M12 2v2"/><path d="M5.07 9.07 7 11"/><path d="M2 12h2"/><path d="M5.07 14.93 7 13"/><path d="M19.07 9.07 14 14"/></svg>
 );
+
+export const BookmarkIcon: React.FC<{ className?: string; isFilled?: boolean }> = ({ className, isFilled = false }) => (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={isFilled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>
+    </svg>
+);
+
+export const PencilIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+);
