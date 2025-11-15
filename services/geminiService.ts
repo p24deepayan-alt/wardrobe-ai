@@ -88,16 +88,37 @@ interface GeneratedOutfit {
 
 export const generateOutfits = async (
     items: ClothingItem[],
-    options: { occasion?: string; weather?: Weather; isSurprise?: boolean }
+    options: { occasion?: string; weather?: Weather; isSurprise?: boolean },
+    history: string[][] = []
 ): Promise<GeneratedOutfit[]> => {
     const wardrobeData = JSON.stringify(items.map(i => ({ id: i.id, name: i.name, category: i.category, color: i.color, style: i.style })));
+
+    let historyPrompt = '';
+    if (history && history.length > 0) {
+        const historyString = history
+            .map(outfitIds => {
+                const outfitItemNames = outfitIds
+                    .map(id => items.find(item => item.id === id)?.name)
+                    .filter(Boolean);
+                if (outfitItemNames.length > 0) {
+                    return `- An outfit with: ${outfitItemNames.join(', ')}`;
+                }
+                return null;
+            })
+            .filter(Boolean)
+            .join('\n');
+        
+        if(historyString) {
+             historyPrompt = `\n\nIMPORTANT: Avoid repetition. Do not generate outfits that are the same as or very similar to these recently suggested ones:\n${historyString}`;
+        }
+    }
 
     let prompt: string;
 
     if (options.isSurprise) {
         prompt = `You are a creative and daring fashion stylist. From the provided wardrobe, create 3 unique and unexpected but stylish outfits. Ignore conventional rules and create something bold and inspiring. Ensure each outfit has a creative name and an appropriate occasion. Use only the item IDs provided from the wardrobe.
     
-    Wardrobe: ${wardrobeData}`;
+    Wardrobe: ${wardrobeData}${historyPrompt}`;
     } else if (options.occasion && options.weather) {
         prompt = `You are a fashion stylist. Based on the following wardrobe items, create 3 diverse outfits.
   
@@ -108,7 +129,7 @@ export const generateOutfits = async (
     4. Ensure each outfit is practical and stylish. For example, don't suggest shorts in cold weather.
     5. Use only the item IDs provided from the wardrobe.
     
-    Wardrobe: ${wardrobeData}`;
+    Wardrobe: ${wardrobeData}${historyPrompt}`;
     } else {
         throw new Error("Either 'isSurprise' must be true, or 'occasion' and 'weather' must be provided.");
     }

@@ -1,19 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { getUsers, getItems } from '../services/storageService';
 import type { User, ClothingItem } from '../types';
+import { SpinnerIcon } from './icons';
 
 const AdminDashboard: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [items, setItems] = useState<ClothingItem[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        setUsers(getUsers());
-        setItems(getItems());
+        const fetchData = async () => {
+            try {
+                const [userList, itemList] = await Promise.all([getUsers(), getItems()]);
+                setUsers(userList);
+                setItems(itemList);
+            } catch (error) {
+                console.error("Failed to fetch admin data", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchData();
     }, []);
 
     const getUserWardrobeSize = (userId: string) => {
         return items.filter(item => item.userId === userId).length;
     };
+
+    if (isLoading) {
+        return (
+             <div className="flex items-center justify-center min-h-[300px]">
+                <SpinnerIcon className="w-8 h-8 text-primary" />
+            </div>
+        )
+    }
 
     return (
         <div className="bg-card border border-border p-6 rounded-xl shadow-lg">

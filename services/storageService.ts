@@ -1,148 +1,206 @@
 import type { User, ClothingItem } from '../types';
 
-// Initialize with a default admin user if no users exist
-const initializeUsers = () => {
-    const users: User[] = [
-        { 
-            id: 'admin-001', 
-            name: 'Admin', 
-            email: 'admin@chroma.ai', 
-            // In a real app, passwords must be hashed. This is for demonstration only.
-            password: 'password123', 
-            avatarUrl: 'https://api.dicebear.com/8.x/initials/svg?seed=Admin', 
-            roles: ['user', 'admin'] 
-        }
-    ];
-    localStorage.setItem('chroma_users', JSON.stringify(users));
-    return users;
+const DB_NAME = 'ChromaDB';
+const DB_VERSION = 1;
+const USERS_STORE = 'users';
+const ITEMS_STORE = 'items';
+
+let dbPromise: Promise<IDBDatabase> | null = null;
+
+const initDB = (): Promise<IDBDatabase> => {
+    if (dbPromise) {
+        return dbPromise;
+    }
+
+    dbPromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onerror = () => {
+            console.error("IndexedDB error:", request.error);
+            reject("Error opening DB");
+        };
+
+        request.onsuccess = () => {
+            resolve(request.result);
+        };
+
+        request.onupgradeneeded = (event) => {
+            const db = (event.target as IDBOpenDBRequest).result;
+            if (!db.objectStoreNames.contains(USERS_STORE)) {
+                const usersStore = db.createObjectStore(USERS_STORE, { keyPath: 'id' });
+                usersStore.createIndex('email', 'email', { unique: true });
+                
+                usersStore.transaction.oncomplete = () => {
+                    const adminUser: User = { 
+                        id: 'admin-001', 
+                        name: 'Admin', 
+                        email: 'admin@chroma.ai', 
+                        password: 'password123', 
+                        avatarUrl: 'https://api.dicebear.com/8.x/initials/svg?seed=Admin', 
+                        roles: ['user', 'admin'] 
+                    };
+                    const transaction = db.transaction(USERS_STORE, 'readwrite');
+                    transaction.objectStore(USERS_STORE).add(adminUser);
+                };
+            }
+            if (!db.objectStoreNames.contains(ITEMS_STORE)) {
+                const itemsStore = db.createObjectStore(ITEMS_STORE, { keyPath: 'id' });
+                itemsStore.createIndex('userId', 'userId', { unique: false });
+            }
+        };
+    });
+    return dbPromise;
+};
+
+const promisifyRequest = <T>(request: IDBRequest<T>): Promise<T> => {
+    return new Promise((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
 };
 
 // USER FUNCTIONS
-export const getUsers = (): User[] => {
-    const users = localStorage.getItem('chroma_users');
-    if (!users) {
-        return initializeUsers();
-    }
-    return JSON.parse(users);
+export const getUsers = async (): Promise<User[]> => {
+    const db = await initDB();
+    const transaction = db.transaction(USERS_STORE, 'readonly');
+    const store = transaction.objectStore(USERS_STORE);
+    return promisifyRequest(store.getAll());
 };
 
-export const saveUsers = (users: User[]) => {
-    localStorage.setItem('chroma_users', JSON.stringify(users));
+export const addUser = async (user: User): Promise<void> => {
+    const db = await initDB();
+    const transaction = db.transaction(USERS_STORE, 'readwrite');
+    const store = transaction.objectStore(USERS_STORE);
+    await promisifyRequest(store.add(user));
 };
 
-export const updateUser = (updatedUser: User) => {
-    const users = getUsers();
-    const userIndex = users.findIndex(u => u.id === updatedUser.id);
-    if (userIndex !== -1) {
-        users[userIndex] = updatedUser;
-        saveUsers(users);
-    }
+export const updateUser = async (updatedUser: User): Promise<void> => {
+    const db = await initDB();
+    const transaction = db.transaction(USERS_STORE, 'readwrite');
+    const store = transaction.objectStore(USERS_STORE);
+    await promisifyRequest(store.put(updatedUser));
 };
 
 // PASSWORD RESET FUNCTIONS
 const TOKEN_EXPIRY_MINUTES = 15;
 
-export const requestPasswordReset = (email: string): { success: boolean, token?: string, error?: string } => {
-    const users = getUsers();
+export const requestPasswordReset = async (email: string): Promise<{ success: boolean, token?: string, error?: string }> => {
+    const users = await getUsers();
     const userIndex = users.findIndex(u => u.email === email);
     
     if (userIndex === -1) {
         return { success: false, error: "No account found with this email address." };
     }
     
-    // Generate a simple token for simulation
+    const user = users[userIndex];
     const token = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
     const expiry = Date.now() + TOKEN_EXPIRY_MINUTES * 60 * 1000;
     
-    users[userIndex].resetToken = token;
-    users[userIndex].resetTokenExpiry = expiry;
+    user.resetToken = token;
+    user.resetTokenExpiry = expiry;
     
-    saveUsers(users);
+    await updateUser(user);
     
     return { success: true, token };
 };
 
-export const resetPassword = (token: string, newPassword: string): { success: boolean, error?: string } => {
-    const users = getUsers();
-    const userIndex = users.findIndex(u => u.resetToken === token);
+export const resetPassword = async (token: string, newPassword: string): Promise<{ success: boolean, error?: string }> => {
+    const users = await getUsers();
+    const user = users.find(u => u.resetToken === token);
     
-    if (userIndex === -1) {
+    if (!user) {
         return { success: false, error: "Invalid reset token." };
     }
     
-    const user = users[userIndex];
     if (!user.resetTokenExpiry || Date.now() > user.resetTokenExpiry) {
-        // Clear expired token
         user.resetToken = undefined;
         user.resetTokenExpiry = undefined;
-        saveUsers(users);
+        await updateUser(user);
         return { success: false, error: "Reset token has expired. Please request a new one." };
     }
     
-    // Success: Update password and clear token
     user.password = newPassword;
     user.resetToken = undefined;
     user.resetTokenExpiry = undefined;
     
-    saveUsers(users);
+    await updateUser(user);
     
     return { success: true };
 };
 
 // CLOTHING ITEM FUNCTIONS
-export const getItems = (): ClothingItem[] => {
-    const items = localStorage.getItem('chroma_items');
-    return items ? JSON.parse(items) : [];
+export const getItems = async (): Promise<ClothingItem[]> => {
+    const db = await initDB();
+    const transaction = db.transaction(ITEMS_STORE, 'readonly');
+    const store = transaction.objectStore(ITEMS_STORE);
+    return promisifyRequest(store.getAll());
 };
 
-export const saveItems = (items: ClothingItem[]) => {
-    localStorage.setItem('chroma_items', JSON.stringify(items));
+export const getItemsByUserId = async (userId: string): Promise<ClothingItem[]> => {
+    const db = await initDB();
+    const transaction = db.transaction(ITEMS_STORE, 'readonly');
+    const store = transaction.objectStore(ITEMS_STORE);
+    const index = store.index('userId');
+    return promisifyRequest(index.getAll(userId));
 };
 
-export const getItemsByUserId = (userId: string): ClothingItem[] => {
-    return getItems().filter(item => item.userId === userId);
+export const addItems = async (newItems: ClothingItem[]): Promise<void> => {
+    if (newItems.length === 0) return;
+    const db = await initDB();
+    const transaction = db.transaction(ITEMS_STORE, 'readwrite');
+    const store = transaction.objectStore(ITEMS_STORE);
+    for (const item of newItems) {
+        store.add(item);
+    }
+    return new Promise((resolve, reject) => {
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+    });
 };
 
-export const addItems = (newItems: ClothingItem[]) => {
-    const items = getItems();
-    saveItems([...newItems, ...items]);
+export const updateItem = async (updatedItem: ClothingItem): Promise<void> => {
+    const db = await initDB();
+    const transaction = db.transaction(ITEMS_STORE, 'readwrite');
+    const store = transaction.objectStore(ITEMS_STORE);
+    await promisifyRequest(store.put(updatedItem));
 };
 
-export const addItem = (item: ClothingItem) => {
-    addItems([item]);
+export const deleteItem = async (itemId: string): Promise<void> => {
+    const db = await initDB();
+    const transaction = db.transaction(ITEMS_STORE, 'readwrite');
+    const store = transaction.objectStore(ITEMS_STORE);
+    await promisifyRequest(store.delete(itemId));
 };
 
-export const updateItem = (updatedItem: ClothingItem) => {
-    const items = getItems();
-    const newItems = items.map(item => item.id === updatedItem.id ? updatedItem : item);
-    saveItems(newItems);
-};
-
-export const deleteItem = (itemId: string) => {
-    const items = getItems();
-    const newItems = items.filter(item => item.id !== itemId);
-    saveItems(newItems);
-};
-
-export const deleteItems = (itemIds: string[]) => {
+export const deleteItems = async (itemIds: string[]): Promise<void> => {
     if (itemIds.length === 0) return;
-    const items = getItems();
-    const newItems = items.filter(item => !itemIds.includes(item.id));
-    saveItems(newItems);
+    const db = await initDB();
+    const transaction = db.transaction(ITEMS_STORE, 'readwrite');
+    const store = transaction.objectStore(ITEMS_STORE);
+    for (const id of itemIds) {
+        store.delete(id);
+    }
+    return new Promise((resolve, reject) => {
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+    });
 };
 
-
-// SESSION FUNCTIONS
+// SESSION FUNCTIONS (using localStorage for synchronous access on startup)
 export const getSessionUser = (): User | null => {
-    const userId = localStorage.getItem('chroma_session');
-    if (!userId) return null;
-    return getUsers().find(u => u.id === userId) || null;
+    const userJson = localStorage.getItem('chroma_session_user');
+    if (!userJson) return null;
+    try {
+        return JSON.parse(userJson);
+    } catch {
+        return null;
+    }
 };
 
 export const setSessionUser = (user: User) => {
-    localStorage.setItem('chroma_session', user.id);
+    localStorage.setItem('chroma_session_user', JSON.stringify(user));
 };
 
 export const clearSession = () => {
-    localStorage.removeItem('chroma_session');
+    localStorage.removeItem('chroma_session_user');
 };

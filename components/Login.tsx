@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import useAuth from '../hooks/useAuth';
 import { MailIcon, LockIcon, UserIcon, SpinnerIcon, LogoIcon } from './icons';
-import { getUsers, saveUsers } from '../services/storageService';
+import { getUsers, addUser } from '../services/storageService';
 import type { User } from '../types';
 import ForgotPasswordModal from './ForgotPasswordModal';
 import ThemeSwitcher from './ThemeSwitcher';
@@ -16,23 +16,26 @@ const Login: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
 
-    const handleLogin = (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
         setIsLoading(true);
-        setTimeout(() => { // Simulate network delay
-            const users = getUsers();
+        try {
+            const users = await getUsers();
             const user = users.find(u => u.email === email && u.password === password);
             if (user) {
                 login(user);
             } else {
                 setError('Invalid email or password.');
             }
+        } catch (err) {
+            setError('Could not verify credentials. Please try again.');
+        } finally {
             setIsLoading(false);
-        }, 500);
+        }
     };
     
-    const handleSignUp = (e: React.FormEvent) => {
+    const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!name || !email || !password) {
             setError('All fields are required.');
@@ -40,8 +43,8 @@ const Login: React.FC = () => {
         }
         setError('');
         setIsLoading(true);
-        setTimeout(() => { // Simulate network delay
-            const users = getUsers();
+        try {
+            const users = await getUsers();
             if (users.some(u => u.email === email)) {
                 setError('An account with this email already exists.');
                 setIsLoading(false);
@@ -55,10 +58,13 @@ const Login: React.FC = () => {
                 avatarUrl: `https://api.dicebear.com/8.x/initials/svg?seed=${name}`,
                 roles: ['user'],
             };
-            saveUsers([...users, newUser]);
+            await addUser(newUser);
             login(newUser);
+        } catch (err) {
+             setError('Could not create account. Please try again.');
+        } finally {
             setIsLoading(false);
-        }, 500);
+        }
     };
 
     return (

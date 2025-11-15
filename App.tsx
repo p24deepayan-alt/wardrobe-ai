@@ -6,7 +6,7 @@ import Login from './components/Login';
 import UserDashboard from './components/UserDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import Header from './components/Header';
-import { getSessionUser, setSessionUser, clearSession, updateUser as storageUpdateUser } from './services/storageService';
+import { getSessionUser, setSessionUser, clearSession, updateUser as storageUpdateUser, getUsers } from './services/storageService';
 import { SpinnerIcon } from './components/icons';
 import LandingPage from './components/LandingPage';
 import { ThemeProvider } from './context/ThemeContext';
@@ -43,6 +43,9 @@ const App: React.FC = () => {
     const [isFirstVisit, setFirstVisit] = useState(!sessionStorage.getItem('hasVisited'));
 
     useEffect(() => {
+        // Prime the DB connection on startup
+        getUsers();
+        
         try {
             const sessionUser = getSessionUser();
             if (sessionUser) {
@@ -78,9 +81,10 @@ const App: React.FC = () => {
         }
     };
     
-    const updateUser = (updatedUser: User) => {
+    const updateUser = async (updatedUser: User) => {
         setUser(updatedUser);
-        storageUpdateUser(updatedUser);
+        setSessionUser(updatedUser); // Keep session in sync
+        await storageUpdateUser(updatedUser);
     }
 
     const authContextValue = useMemo(() => ({

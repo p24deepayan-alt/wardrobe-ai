@@ -17,14 +17,14 @@ const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ onClose }) =>
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
 
-    const handleRequestReset = (e: React.FormEvent) => {
+    const handleRequestReset = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
         setError('');
         setSuccessMessage('');
         
-        setTimeout(() => { // Simulate network delay
-            const result = requestPasswordReset(email);
+        try {
+            const result = await requestPasswordReset(email);
             if (result.success && result.token) {
                 setSuccessMessage(`A reset token has been generated. In a real app, this would be emailed to you. For this demo, please copy the token below and proceed.`);
                 setToken(result.token);
@@ -32,11 +32,14 @@ const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ onClose }) =>
             } else {
                 setError(result.error || 'An unknown error occurred.');
             }
+        } catch (err) {
+            setError('An unexpected error occurred. Please try again.');
+        } finally {
             setIsLoading(false);
-        }, 500);
+        }
     };
 
-    const handleResetPassword = (e: React.FormEvent) => {
+    const handleResetPassword = async (e: React.FormEvent) => {
         e.preventDefault();
         if (newPassword !== confirmPassword) {
             setError('Passwords do not match.');
@@ -51,16 +54,19 @@ const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ onClose }) =>
         setError('');
         setSuccessMessage('');
 
-        setTimeout(() => { // Simulate network delay
-            const result = resetPassword(token, newPassword);
+        try {
+            const result = await resetPassword(token, newPassword);
             if (result.success) {
                 setSuccessMessage('Your password has been successfully reset! You can now log in.');
                 setTimeout(onClose, 3000);
             } else {
                 setError(result.error || 'Failed to reset password.');
             }
+        } catch (err) {
+            setError('An unexpected error occurred. Please try again.');
+        } finally {
             setIsLoading(false);
-        }, 500);
+        }
     };
 
     return (

@@ -47,7 +47,9 @@ const DailyStyle: React.FC = () => {
 
     useEffect(() => {
         if (user) {
-            setUserWardrobe(getItemsByUserId(user.id));
+            getItemsByUserId(user.id)
+                .then(setUserWardrobe)
+                .catch(err => console.error("Failed to load wardrobe", err));
         }
     }, [user]);
 
@@ -87,16 +89,24 @@ const DailyStyle: React.FC = () => {
         setError('');
         setOutfits([]);
         try {
+            const outfitHistory: string[][] = JSON.parse(sessionStorage.getItem('outfitHistory') || '[]');
+
             const options = isSurprise 
                 ? { isSurprise: true } 
                 : { occasion, weather };
-            const generated = await generateOutfits(userWardrobe, options);
+            const generated = await generateOutfits(userWardrobe, options, outfitHistory);
+            
             const hydratedOutfits = generated.map((outfit, index) => ({
                 id: `outfit-${Date.now()}-${index}`,
                 name: outfit.name,
                 occasion: outfit.occasion,
                 items: outfit.itemIds.map(id => userWardrobe.find(item => item.id === id)).filter(Boolean) as ClothingItem[],
             }));
+
+            const newHistoryItems = generated.map(o => o.itemIds.sort());
+            const updatedHistory = [...outfitHistory, ...newHistoryItems].slice(-15); // Keep last 5 tries (5 * 3 outfits = 15)
+            sessionStorage.setItem('outfitHistory', JSON.stringify(updatedHistory));
+
             setOutfits(hydratedOutfits);
         } catch (err) {
             console.error("Failed to generate outfits:", err);

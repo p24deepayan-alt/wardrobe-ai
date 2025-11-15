@@ -13,65 +13,71 @@ const Enhancements: React.FC = () => {
     const [error, setError] = useState('');
     const [selectedForDiscard, setSelectedForDiscard] = useState<string[]>([]);
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [userWardrobe, setUserWardrobe] = useState<ClothingItem[]>([]);
 
     useEffect(() => {
         if (!user) return;
         
-        const userWardrobe = getItemsByUserId(user.id);
-
-        const fetchSuggestions = (location?: {latitude: number, longitude: number}) => {
-            if (userWardrobe.length === 0) {
+        const fetchWardrobeAndSuggestions = async () => {
+            const wardrobe = await getItemsByUserId(user.id);
+            setUserWardrobe(wardrobe);
+            
+            if (wardrobe.length === 0) {
                  setIsLoading(false);
                  return;
             }
-            setIsLoading(true);
-            setError('');
-            Promise.all([
-                getDiscardSuggestions(userWardrobe),
-                getShoppingSuggestions(userWardrobe, location)
-            ]).then(([discardRes, shoppingRes]) => {
-                const hydratedDiscard = discardRes
-                    .map(({ itemId, reason }) => ({
-                        item: userWardrobe.find(i => i.id === itemId)!,
-                        reason,
-                    }))
-                    .filter(suggestion => suggestion.item);
 
-                const hydratedShopping: ShoppingSuggestion[] = shoppingRes.map((suggestion, index) => {
-                    const query = encodeURIComponent(`${suggestion.name} ${suggestion.category}`);
-                    return {
-                        ...suggestion,
-                        id: `shop-${Date.now()}-${index}`,
-                        imageUrl: `https://source.unsplash.com/400x400/?${query},fashion,style`,
-                        purchaseUrl: `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(suggestion.name)}`,
-                    };
+            // Nested function to get location and then fetch AI suggestions
+            const fetchSuggestionsWithLocation = (location?: {latitude: number, longitude: number}) => {
+                setIsLoading(true);
+                setError('');
+                Promise.all([
+                    getDiscardSuggestions(wardrobe),
+                    getShoppingSuggestions(wardrobe, location)
+                ]).then(([discardRes, shoppingRes]) => {
+                    const hydratedDiscard = discardRes
+                        .map(({ itemId, reason }) => ({
+                            item: wardrobe.find(i => i.id === itemId)!,
+                            reason,
+                        }))
+                        .filter(suggestion => suggestion.item);
+
+                    const hydratedShopping: ShoppingSuggestion[] = shoppingRes.map((suggestion, index) => {
+                        const query = encodeURIComponent(`${suggestion.name} ${suggestion.category}`);
+                        return {
+                            ...suggestion,
+                            id: `shop-${Date.now()}-${index}`,
+                            imageUrl: `https://source.unsplash.com/400x400/?${query},fashion,style`,
+                            purchaseUrl: `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(suggestion.name)}`,
+                        };
+                    });
+
+
+                    setDiscardSuggestions(hydratedDiscard);
+                    setShoppingSuggestions(hydratedShopping);
+                }).catch(err => {
+                    console.error("Failed to fetch suggestions:", err);
+                    setError(err instanceof Error ? err.message : 'Failed to load enhancement suggestions.');
+                }).finally(() => {
+                    setIsLoading(false);
                 });
-
-
-                setDiscardSuggestions(hydratedDiscard);
-                setShoppingSuggestions(hydratedShopping);
-            }).catch(err => {
-                console.error("Failed to fetch suggestions:", err);
-                setError(err instanceof Error ? err.message : 'Failed to load enhancement suggestions.');
-            }).finally(() => {
-                setIsLoading(false);
-            });
+            };
+            
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const { latitude, longitude } = position.coords;
+                    fetchSuggestionsWithLocation({ latitude, longitude });
+                },
+                (error) => {
+                    console.warn("Could not get location, fetching suggestions without it.", error.message);
+                    fetchSuggestionsWithLocation();
+                }
+            );
         };
         
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude, longitude } = position.coords;
-                fetchSuggestions({ latitude, longitude });
-            },
-            (error) => {
-                console.warn("Could not get location, fetching suggestions without it.", error.message);
-                fetchSuggestions();
-            }
-        );
+        fetchWardrobeAndSuggestions();
 
     }, [user]);
-    
-    const userWardrobe = user ? getItemsByUserId(user.id) : [];
 
     const handleToggleDiscardSelection = (itemId: string) => {
         setSelectedForDiscard(prev => 
@@ -86,11 +92,12 @@ const Enhancements: React.FC = () => {
         setIsConfirmModalOpen(true);
     };
 
-    const confirmBulkDelete = () => {
-        deleteItems(selectedForDiscard);
+    const confirmBulkDelete = async () => {
+        await deleteItems(selectedForDiscard);
         setDiscardSuggestions(prev => 
             prev.filter(suggestion => !selectedForDiscard.includes(suggestion.item.id))
         );
+        setUserWardrobe(prev => prev.filter(item => !selectedForDiscard.includes(item.id)));
         setSelectedForDiscard([]);
         setIsConfirmModalOpen(false);
     };

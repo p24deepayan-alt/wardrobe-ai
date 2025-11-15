@@ -37,18 +37,18 @@ const StyleProfile: React.FC = () => {
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (user && newImage) {
-            updateUser({ ...user, tryOnImageUrl: newImage });
+            await updateUser({ ...user, tryOnImageUrl: newImage });
             setNewImage(null); // Clear the staging area
         }
     };
 
-    const handleRemove = () => {
+    const handleRemove = async () => {
         if (user) {
             // Create a new object without the tryOnImageUrl property
             const { tryOnImageUrl, ...userWithoutImage } = user;
-            updateUser(userWithoutImage);
+            await updateUser(userWithoutImage);
         }
     };
     
@@ -79,7 +79,7 @@ const StyleProfile: React.FC = () => {
                         {user?.tryOnImageUrl ? 'Change Photo' : 'Upload Photo'}
                         <input type="file" accept="image/jpeg, image/png" onChange={handleFileChange} className="hidden"/>
                     </label>
-                    {user?.tryOnImageUrl && (
+                    {user?.tryOnImageUrl && !newImage && (
                         <button onClick={handleRemove} className="p-2.5 bg-accent/10 text-accent rounded-lg hover:bg-accent/20 transition-colors">
                             <TrashIcon className="w-5 h-5"/>
                         </button>

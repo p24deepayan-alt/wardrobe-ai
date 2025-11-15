@@ -181,6 +181,7 @@ const AddItemModal: React.FC<{ onClose: () => void, onAddItems: (items: Clothing
 const Wardrobe: React.FC = () => {
     const { user } = useAuth();
     const [wardrobeItems, setWardrobeItems] = useState<ClothingItem[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedItem, setSelectedItem] = useState<ClothingItem | null>(null);
     const [activeCategory, setActiveCategory] = useState<ClothingCategory | 'All'>('All');
@@ -190,23 +191,27 @@ const Wardrobe: React.FC = () => {
 
     useEffect(() => {
         if (user) {
-            setWardrobeItems(getItemsByUserId(user.id));
+            setIsLoading(true);
+            getItemsByUserId(user.id)
+                .then(setWardrobeItems)
+                .catch(err => console.error("Failed to load wardrobe items", err))
+                .finally(() => setIsLoading(false));
         }
     }, [user]);
 
-    const handleAddItems = (items: ClothingItem[]) => {
-        addItems(items);
+    const handleAddItems = async (items: ClothingItem[]) => {
+        await addItems(items);
         setWardrobeItems(prev => [...items, ...prev]);
     };
 
-    const handleUpdateItem = (updated: ClothingItem) => {
-        updateItem(updated);
+    const handleUpdateItem = async (updated: ClothingItem) => {
+        await updateItem(updated);
         setWardrobeItems(prev => prev.map(item => item.id === updated.id ? updated : item));
         setSelectedItem(null);
     };
 
-    const handleDeleteItem = (itemId: string) => {
-        deleteItem(itemId);
+    const handleDeleteItem = async (itemId: string) => {
+        await deleteItem(itemId);
         setWardrobeItems(prev => prev.filter(item => item.id !== itemId));
         setSelectedItem(null);
     };
@@ -254,7 +259,11 @@ const Wardrobe: React.FC = () => {
                 </div>
             </div>
 
-            {wardrobeItems.length > 0 ? (
+            {isLoading ? (
+                 <div className="text-center py-12">
+                     <SpinnerIcon className="w-8 h-8 mx-auto text-primary" />
+                 </div>
+            ) : wardrobeItems.length > 0 ? (
                 filteredItems.length > 0 ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                         {filteredItems.map(item => <ItemCard key={item.id} item={item} onClick={() => setSelectedItem(item)} />)}
