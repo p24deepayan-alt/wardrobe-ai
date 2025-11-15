@@ -79,6 +79,8 @@ const App: React.FC = () => {
     const logout = () => {
         setUser(null);
         clearSession();
+        sessionStorage.removeItem('hasVisited');
+        setFirstVisit(true);
     };
 
     const switchRole = (newRole: UserRole) => {
