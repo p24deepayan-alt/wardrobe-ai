@@ -65,9 +65,15 @@ const App: React.FC = () => {
     };
 
     const login = (loggedInUser: User) => {
-        setUser(loggedInUser);
+        const userWithLoginData = {
+            ...loggedInUser,
+            lastLogin: new Date(),
+            loginHistory: [...(loggedInUser.loginHistory || []), new Date()].slice(-100) // Keep last 100 logins
+        };
+        setUser(userWithLoginData);
         setRole('user');
-        setSessionUser(loggedInUser);
+        setSessionUser(userWithLoginData);
+        storageUpdateUser(userWithLoginData); // Persist changes
     };
 
     const logout = () => {

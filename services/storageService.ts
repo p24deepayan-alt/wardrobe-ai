@@ -200,6 +200,13 @@ export const getSavedOutfitsByUserId = async (userId: string): Promise<Outfit[]>
     return promisifyRequest(index.getAll(userId));
 };
 
+export const getAllSavedOutfits = async (): Promise<(Outfit & { userId: string })[]> => {
+    const db = await initDB();
+    const transaction = db.transaction(SAVED_OUTFITS_STORE, 'readonly');
+    const store = transaction.objectStore(SAVED_OUTFITS_STORE);
+    return promisifyRequest(store.getAll());
+}
+
 export const addSavedOutfit = async (outfit: Outfit, userId: string): Promise<Outfit> => {
     const db = await initDB();
     const transaction = db.transaction(SAVED_OUTFITS_STORE, 'readwrite');

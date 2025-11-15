@@ -115,3 +115,7 @@ export const PencilIcon: React.FC<{ className?: string }> = ({ className }) => (
 export const LeafIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20A7 7 0 0 1 4 13V8a5 5 0 0 1 5-5 5 5 0 0 1 5 5v1.5A3.5 3.5 0 0 0 16.5 13H18a3 3 0 0 1 3 3v1a2 2 0 0 1-2 2h-1Z"/><path d="M11 5.5V13a2 2 0 0 0 2 2h1.5a1.5 1.5 0 0 1 0 3H13a1 1 0 0 1-1-1v-2.5"/></svg>
 );
+
+export const TrendingUpIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+);

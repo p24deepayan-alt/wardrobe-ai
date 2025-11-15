@@ -39,6 +39,8 @@ export interface User {
   resetToken?: string;
   resetTokenExpiry?: number; // Store as timestamp
   tryOnImageUrl?: string; // For Virtual Try-On feature
+  lastLogin?: Date;
+  loginHistory?: Date[];
 }
 
 export interface ShoppingSuggestion {
