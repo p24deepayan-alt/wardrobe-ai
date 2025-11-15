@@ -1,0 +1,7 @@
+{
+  "name": "Copy of Chroma",
+  "description": "Your AI-powered style assistant. Chroma helps you catalog your wardrobe, creates daily outfits, and elevates your personal style.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
