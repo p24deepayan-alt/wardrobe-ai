@@ -208,38 +208,45 @@ export const getDiscardSuggestions = async (items: ClothingItem[]): Promise<{ it
     }
 };
 
-export const getShoppingSuggestions = async (items: ClothingItem[], location?: {latitude: number, longitude: number}): Promise<{ name: string; description: string; category: string; priceRange: string; }[]> => {
+export const getShoppingSuggestions = async (items: ClothingItem[], location?: {latitude: number, longitude: number}): Promise<Omit<ShoppingSuggestion, 'id'>[]> => {
     const wardrobeSummary = items.map(i => `${i.name} (${i.category})`).join(', ');
-    const locationInfo = location ? `The user is currently at latitude ${location.latitude}, longitude ${location.longitude}.` : "The user's location is not specified.";
+    const locationInfo = location ? `The user is in a region near latitude ${location.latitude}, longitude ${location.longitude}. Tailor suggestions and pricing to this region.` : "The user's location is not specified; assume a major global market like the US.";
     
     const prompt = `Based on a wardrobe that includes: ${wardrobeSummary}. ${locationInfo}
-    
-    Suggest 3 new, versatile clothing items or accessories that would complement this collection. For each suggestion, provide a name, a brief description of why it's a good addition, a specific category (e.g., 'Sneakers', 'Handbag'), and a typical price range (e.g., '$50 - $100').`;
+
+You are an expert personal shopper. Use Google Search to find 3 specific, real clothing items or accessories that would complement this collection and are available for purchase online.
+
+For each item, provide:
+1.  A descriptive name (e.g., "Everlane The Linen Workwear Shirt").
+2.  A brief description of why it's a good addition.
+3.  A specific category (e.g., 'Shirt', 'Handbag').
+4.  A typical price range, including currency relevant to the user's location (e.g., "$80 - $100 USD", "€50 - €75").
+5.  A direct URL to a retail page where the item can be purchased.
+6.  A direct URL to a high-quality image of the product.
+
+Return the result as a valid JSON array of objects. Each object must have keys: "name", "description", "category", "priceRange", "purchaseUrl", "imageUrl".`;
 
     try {
         const response = await ai.models.generateContent({
             model: textModel,
             contents: prompt,
             config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            name: { type: Type.STRING, description: 'The name of the suggested item.'},
-                            description: { type: Type.STRING, description: 'A brief description of the item and why it fits.'},
-                            category: { type: Type.STRING, description: 'A specific category for the item, e.g., "Sneakers", "Handbag".' },
-                            priceRange: { type: Type.STRING, description: 'A typical price range for the item, e.g., "$50 - $100".' }
-                        }
-                    }
-                }
-            }
+              tools: [{googleSearch: {}}],
+            },
         });
-        const jsonString = response.text;
-        return JSON.parse(jsonString);
+
+        const jsonString = response.text.trim();
+        const cleanedJsonString = jsonString.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+        
+        const suggestions = JSON.parse(cleanedJsonString);
+
+        return suggestions;
+
     } catch (error) {
         console.error("Error getting shopping suggestions:", error);
+        if (error instanceof SyntaxError) {
+             throw new Error("Failed to get shopping suggestions from AI. The model returned an invalid format.");
+        }
         throw new Error("Failed to get shopping suggestions from AI.");
     }
 };

@@ -63,7 +63,7 @@ const Enhancements: React.FC = () => {
                     getShoppingSuggestions(wardrobe, location)
                 ]).then(([discardRes, shoppingRes]) => {
                     const hydratedDiscard = discardRes.map(({ itemId, reason }) => ({ item: wardrobe.find(i => i.id === itemId)!, reason })).filter(s => s.item);
-                    const hydratedShopping: ShoppingSuggestion[] = shoppingRes.map((s, i) => ({ ...s, id: `shop-${Date.now()}-${i}`, imageUrl: `https://source.unsplash.com/400x400/?${encodeURIComponent(`${s.name} ${s.category}`)},fashion,style`, purchaseUrl: `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(s.name)}` }));
+                    const hydratedShopping: ShoppingSuggestion[] = shoppingRes.map((s, i) => ({ ...s, id: `shop-${Date.now()}-${i}` }));
                     setDiscardSuggestions(hydratedDiscard);
                     setShoppingSuggestions(hydratedShopping);
                 }).catch(err => {
