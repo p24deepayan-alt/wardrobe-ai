@@ -216,23 +216,48 @@ export const getAllSavedOutfits = async (): Promise<(Outfit & { userId: string }
 
 export const getPublicOutfits = async (): Promise<(Outfit & { creator: User })[]> => {
     const db = await initDB();
-    const transaction = db.transaction([SAVED_OUTFITS_STORE, USERS_STORE], 'readonly');
+    const transaction = db.transaction([SAVED_OUTFITS_STORE, USERS_STORE, ITEMS_STORE], 'readonly');
     const outfitsStore = transaction.objectStore(SAVED_OUTFITS_STORE);
     const usersStore = transaction.objectStore(USERS_STORE);
-    
-    const publicOutfitsIndex = outfitsStore.index('isPublic');
-    const publicOutfits = await promisifyRequest(publicOutfitsIndex.getAll(IDBKeyRange.only(true)));
-    
-    const users = await promisifyRequest(usersStore.getAll());
-    const userMap = new Map(users.map(u => [u.id, u]));
+    const itemsStore = transaction.objectStore(ITEMS_STORE);
 
-    return publicOutfits
-        .map(outfit => ({
-            ...outfit,
-            creator: userMap.get(outfit.userId)!,
-        }))
-        .filter(outfit => outfit.creator) // Ensure creator exists
-        .sort((a, b) => b.id.localeCompare(a.id)); // Sort by most recent
+    const publicOutfitsIndex = outfitsStore.index('isPublic');
+
+    // Fire all requests in parallel to keep the transaction alive
+    const outfitsRequest = promisifyRequest(publicOutfitsIndex.getAll(IDBKeyRange.only(true)));
+    const usersRequest = promisifyRequest(usersStore.getAll());
+    const allItemsRequest = promisifyRequest(itemsStore.getAll());
+    
+    const [publicOutfits, users, allItems] = await Promise.all([outfitsRequest, usersRequest, allItemsRequest]);
+    
+    const userMap = new Map(users.map(u => [u.id, u]));
+    const itemMap = new Map(allItems.map(i => [i.id, i]));
+
+    const result = publicOutfits
+        .map(outfit => {
+            const creator = userMap.get(outfit.userId);
+            if (!creator) {
+                return null;
+            }
+            
+            const hydratedItems = outfit.items
+                .map(itemStub => itemMap.get(itemStub.id))
+                .filter((item): item is ClothingItem => !!item);
+            
+            // Do not show outfits if their items have been deleted
+            if (hydratedItems.length !== outfit.items.length) {
+                return null;
+            }
+
+            return {
+                ...outfit,
+                items: hydratedItems,
+                creator,
+            };
+        })
+        .filter((outfit): outfit is (Outfit & { creator: User }) => outfit !== null);
+    
+    return result.sort((a, b) => b.id.localeCompare(a.id)); // Sort by most recent
 };
 
 export const addSavedOutfit = async (outfit: Omit<Outfit, 'id' | 'userId'>, userId: string): Promise<Outfit> => {
