@@ -121,11 +121,15 @@ export const generateOutfits = async (
         prompt = `You are a creative and daring fashion stylist. From the provided wardrobe, create 3 unique and unexpected but stylish outfits. Ignore conventional rules and create something bold and inspiring. Ensure each outfit has a creative name and an appropriate occasion. For each outfit, provide a quirky, fun, and insightful explanation (2-3 sentences) for why the unexpected combination is a fashion-forward statement. Use only the item IDs provided from the wardrobe.
     
     Wardrobe: ${wardrobeData}${historyPrompt}`;
-    } else if (options.occasion && options.weather) {
+    } else if (options.weather) {
+        const occasionConstraint = options.occasion
+            ? `1. The occasion is: "${options.occasion}".`
+            : "1. The occasion is for general daily wear. Create versatile and practical outfits.";
+        
         prompt = `You are a fashion stylist. Based on the following wardrobe items, create 3 diverse outfits.
   
     Constraints:
-    1. The occasion is: "${options.occasion}".
+    ${occasionConstraint}
     2. The weather is: ${options.weather.temperature}°${options.weather.unit} and ${options.weather.condition}.
     3. Combine items based on color theory, style compatibility, and fashion principles, appropriate for the weather and occasion.
     4. Ensure each outfit is practical and stylish. For example, don't suggest shorts in cold weather.
@@ -134,7 +138,7 @@ export const generateOutfits = async (
     
     Wardrobe: ${wardrobeData}${historyPrompt}`;
     } else {
-        throw new Error("Either 'isSurprise' must be true, or 'occasion' and 'weather' must be provided.");
+        throw new Error("Either 'isSurprise' must be true, or 'weather' must be provided.");
     }
 
     try {

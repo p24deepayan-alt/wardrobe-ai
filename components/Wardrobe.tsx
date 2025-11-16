@@ -46,6 +46,8 @@ const AddItemModal: React.FC<{ onClose: () => void, onAddItems: (items: Clothing
                 );
                 setStagedImages(prev => [...prev, ...newStagedImages]);
             } catch (err) {
+                 // Fix: Add more robust error handling in the catch block. The `err` variable is of type `unknown` and should be handled safely.
+                 console.error("Failed to process files:", err);
                  setError("Could not process one or more files.");
             }
         }

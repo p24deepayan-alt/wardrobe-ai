@@ -16,9 +16,10 @@ const DailyStyle: React.FC = () => {
     const [userWardrobe, setUserWardrobe] = useState<ClothingItem[]>([]);
     const [savedOutfits, setSavedOutfits] = useState<Outfit[]>([]);
     const [weather, setWeather] = useState<Weather>({ temperature: 20, unit: 'C', condition: 'Sunny' });
-    const [occasion, setOccasion] = useState('A casual brunch with friends');
+    const [occasion, setOccasion] = useState('');
     const [selectedOutfitForTryOn, setSelectedOutfitForTryOn] = useState<Outfit | null>(null);
     const [useAutoWeather, setUseAutoWeather] = useState(true);
+    const [useCustomOccasion, setUseCustomOccasion] = useState(false);
     const [isFetchingWeather, setIsFetchingWeather] = useState(false);
     const [autoWeatherError, setAutoWeatherError] = useState('');
 
@@ -84,7 +85,7 @@ const DailyStyle: React.FC = () => {
 
             const options = isSurprise 
                 ? { isSurprise: true } 
-                : { occasion, weather };
+                : { occasion: (useCustomOccasion && occasion) ? occasion : undefined, weather };
             const generated = await generateOutfits(userWardrobe, options, outfitHistory);
             
             const hydratedOutfits = generated.map((outfit, index) => ({
@@ -140,34 +141,50 @@ const DailyStyle: React.FC = () => {
                 <h1 className="text-2xl font-bold text-card-foreground mb-6">Daily Style Suggestions</h1>
                 
                 <div className="space-y-4 mb-6 p-4 bg-background/50 rounded-lg border border-border">
-                    <div className="flex items-center justify-between">
-                        <label htmlFor="auto-weather-checkbox" className="flex items-center text-sm font-medium text-foreground/80 cursor-pointer">
-                            <input
-                                id="auto-weather-checkbox"
-                                type="checkbox"
-                                className="h-4 w-4 rounded border-border bg-input text-primary focus:ring-ring"
-                                checked={useAutoWeather}
-                                onChange={(e) => setUseAutoWeather(e.target.checked)}
-                            />
-                            <span className="ml-2">Use my current location for weather</span>
-                        </label>
-                        {isFetchingWeather && <SpinnerIcon className="w-4 h-4 text-primary"/>}
-                    </div>
-                    {autoWeatherError && <p className="text-xs text-accent text-center">{autoWeatherError}</p>}
-                    
-                    <div className="space-y-4">
-                        <div>
-                            <label htmlFor="occasion-input" className="block text-sm font-medium text-foreground/80 mb-1">Describe the Occasion</label>
-                            <textarea
-                                id="occasion-input"
-                                value={occasion}
-                                onChange={e => setOccasion(e.target.value)}
-                                placeholder="e.g., A casual brunch with friends, a formal wedding..."
-                                className="w-full bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring px-3 py-2 disabled:opacity-50 min-h-[60px] resize-none"
-                                disabled={isLoading}
-                                rows={2}
-                            />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
+                         <div className="flex items-center">
+                             <label htmlFor="auto-weather-checkbox" className="flex items-center text-sm font-medium text-foreground/80 cursor-pointer">
+                                <input
+                                    id="auto-weather-checkbox"
+                                    type="checkbox"
+                                    className="h-4 w-4 rounded border-border bg-input text-primary focus:ring-ring"
+                                    checked={useAutoWeather}
+                                    onChange={(e) => setUseAutoWeather(e.target.checked)}
+                                />
+                                <span className="ml-2">Use my current location for weather</span>
+                            </label>
+                            {isFetchingWeather && <SpinnerIcon className="w-4 h-4 text-primary ml-2"/>}
+                         </div>
+                         <div className="flex items-center">
+                            <label htmlFor="custom-occasion-checkbox" className="flex items-center text-sm font-medium text-foreground/80 cursor-pointer">
+                                <input
+                                    id="custom-occasion-checkbox"
+                                    type="checkbox"
+                                    className="h-4 w-4 rounded border-border bg-input text-primary focus:ring-ring"
+                                    checked={useCustomOccasion}
+                                    onChange={(e) => setUseCustomOccasion(e.target.checked)}
+                                />
+                                <span className="ml-2">Specify an occasion</span>
+                            </label>
                         </div>
+                    </div>
+                    {autoWeatherError && <p className="text-xs text-accent text-center mt-2">{autoWeatherError}</p>}
+                    
+                    <div className="space-y-4 pt-2">
+                        {useCustomOccasion && (
+                            <div className="animate-fadeIn">
+                                <label htmlFor="occasion-input" className="block text-sm font-medium text-foreground/80 mb-1">Describe the Occasion</label>
+                                <textarea
+                                    id="occasion-input"
+                                    value={occasion}
+                                    onChange={e => setOccasion(e.target.value)}
+                                    placeholder="e.g., A casual brunch with friends, a formal wedding..."
+                                    className="w-full bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring px-3 py-2 disabled:opacity-50 min-h-[60px] resize-none"
+                                    disabled={isLoading}
+                                    rows={2}
+                                />
+                            </div>
+                        )}
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
@@ -224,7 +241,7 @@ const DailyStyle: React.FC = () => {
 
                     {!isLoading && !error && outfits.length === 0 && (
                         <div className="text-center p-10 text-foreground/70">
-                            <p>Describe your occasion, set the weather, and let our AI be your personal stylist.</p>
+                            <p>Set the weather and let our AI be your personal stylist.</p>
                         </div>
                     )}
 

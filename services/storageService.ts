@@ -227,7 +227,7 @@ export const getPublicOutfits = async (page = 1, limit = 9): Promise<{ outfits: 
     const publicOutfitsIndex = outfitsStore.index('isPublic');
 
     const [publicOutfits, users] = await Promise.all([
-        promisifyRequest(publicOutfitsIndex.getAll(IDBKeyRange.only(true))),
+        promisifyRequest(publicOutfitsIndex.getAll(IDBKeyRange.only(1))),
         promisifyRequest(usersStore.getAll())
     ]);
     
@@ -262,7 +262,7 @@ export const addSavedOutfit = async (outfit: Omit<Outfit, 'id' | 'userId'>, user
         ...outfit,
         id: `saved-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         userId,
-        isPublic: false,
+        isPublic: 0,
         likes: [],
     };
     await promisifyRequest(store.add(savedOutfit));
@@ -275,7 +275,7 @@ export const publishOutfit = async (outfitId: string): Promise<Outfit> => {
     const store = transaction.objectStore(SAVED_OUTFITS_STORE);
     const outfit = await promisifyRequest(store.get(outfitId));
     if (outfit) {
-        outfit.isPublic = true;
+        outfit.isPublic = 1;
         await promisifyRequest(store.put(outfit));
         return outfit;
     }

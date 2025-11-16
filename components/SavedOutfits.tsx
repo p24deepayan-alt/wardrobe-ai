@@ -23,9 +23,9 @@ const SavedOutfitCard: React.FC<{
                 <div className="flex items-center gap-2">
                     <button 
                         onClick={() => onShare(outfit.id)} 
-                        disabled={outfit.isPublic}
+                        disabled={!!outfit.isPublic}
                         className="p-2 text-foreground/70 hover:text-secondary disabled:text-secondary/50 disabled:cursor-not-allowed transition-colors" 
-                        aria-label={outfit.isPublic ? "Shared to community" : "Share to community"}
+                        aria-label={!!outfit.isPublic ? "Shared to community" : "Share to community"}
                     >
                         <ShareIcon className="w-4 h-4"/>
                     </button>

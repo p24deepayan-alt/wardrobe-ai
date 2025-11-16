@@ -34,7 +34,7 @@ export interface Outfit {
   occasion: string;
   explanation: string;
   userId: string; // The ID of the user who created/saved it
-  isPublic?: boolean;
+  isPublic?: 0 | 1;
   likes?: string[]; // Array of user IDs who liked it
 }
 
