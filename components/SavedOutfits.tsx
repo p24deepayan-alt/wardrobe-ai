@@ -1,20 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import useAuth from '../hooks/useAuth';
-import type { Outfit } from '../types';
-import { getSavedOutfitsByUserId, deleteSavedOutfit, updateSavedOutfit, publishOutfit, getItemsByUserId } from '../services/storageService';
+import type { Outfit, User } from '../types';
+import { getSavedOutfitsByUserId, deleteSavedOutfit, updateSavedOutfit, publishOutfit, getItemsByUserId, getHydratedCollectedOutfits } from '../services/storageService';
 import ItemCard from './ItemCard';
 import { SpinnerIcon, TrashIcon, PencilIcon, MagicWandIcon, ShareIcon } from './icons';
 import RenameOutfitModal from './RenameOutfitModal';
 import { checkAndAwardAchievements } from '../services/achievementService';
 
-interface SavedOutfitCardProps {
+const SavedOutfitCard: React.FC<{
     outfit: Outfit;
     onDelete: (outfitId: string) => void;
     onRename: (outfit: Outfit) => void;
     onShare: (outfitId: string) => void;
-}
-
-const SavedOutfitCard: React.FC<SavedOutfitCardProps> = ({ outfit, onDelete, onRename, onShare }) => {
+}> = ({ outfit, onDelete, onRename, onShare }) => {
     return (
         <div className="bg-background/50 border border-border p-4 rounded-lg flex flex-col">
             <div className="flex justify-between items-start mb-3">
@@ -50,9 +48,27 @@ const SavedOutfitCard: React.FC<SavedOutfitCardProps> = ({ outfit, onDelete, onR
     );
 };
 
+const CollectedOutfitCard: React.FC<{ outfit: Outfit & { creator: User } }> = ({ outfit }) => (
+    <div className="bg-background/50 border border-border p-4 rounded-lg flex flex-col">
+        <div className="flex items-center mb-3">
+            <img src={outfit.creator.avatarUrl} alt={outfit.creator.name} className="w-8 h-8 rounded-full mr-3" />
+            <div>
+                <h3 className="font-bold text-lg text-card-foreground">{outfit.name}</h3>
+                <p className="text-sm text-foreground/70">by {outfit.creator.name}</p>
+            </div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {outfit.items.map(item => <ItemCard key={item.id} item={item} />)}
+        </div>
+    </div>
+);
+
+
 const SavedOutfits: React.FC = () => {
     const { user, updateUser } = useAuth();
-    const [savedOutfits, setSavedOutfits] = useState<Outfit[]>([]);
+    const [view, setView] = useState<'creations' | 'collection'>('creations');
+    const [createdOutfits, setCreatedOutfits] = useState<Outfit[]>([]);
+    const [collectedOutfits, setCollectedOutfits] = useState<(Outfit & { creator: User })[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [outfitToRename, setOutfitToRename] = useState<Outfit | null>(null);
 
@@ -61,15 +77,17 @@ const SavedOutfits: React.FC = () => {
             setIsLoading(true);
             Promise.all([
                 getSavedOutfitsByUserId(user.id),
-                getItemsByUserId(user.id)
+                getItemsByUserId(user.id),
+                getHydratedCollectedOutfits(user.id)
             ])
-            .then(([outfits, wardrobe]) => {
+            .then(([saved, wardrobe, collected]) => {
                 const wardrobeMap = new Map(wardrobe.map(item => [item.id, item]));
-                const hydratedOutfits = outfits.map(outfit => ({
+                const hydratedSaved = saved.map(outfit => ({
                     ...outfit,
                     items: outfit.items.map(itemStub => wardrobeMap.get(itemStub.id) || itemStub)
                 }));
-                setSavedOutfits(hydratedOutfits.sort((a, b) => b.id.localeCompare(a.id)));
+                setCreatedOutfits(hydratedSaved.sort((a, b) => b.id.localeCompare(a.id)));
+                setCollectedOutfits(collected);
             })
             .catch(err => console.error("Failed to load saved outfits", err))
             .finally(() => setIsLoading(false));
@@ -77,15 +95,15 @@ const SavedOutfits: React.FC = () => {
     }, [user]);
     
     useEffect(() => {
-        if (user && savedOutfits.length > 0) {
-             checkAndAwardAchievements(user, { savedOutfitsCount: savedOutfits.length }, updateUser);
+        if (user && createdOutfits.length > 0) {
+             checkAndAwardAchievements(user, { savedOutfitsCount: createdOutfits.length }, updateUser);
         }
-    }, [user, savedOutfits, updateUser]);
+    }, [user, createdOutfits, updateUser]);
 
     const handleDelete = async (outfitId: string) => {
         if (window.confirm("Are you sure you want to delete this saved outfit?")) {
             await deleteSavedOutfit(outfitId);
-            setSavedOutfits(prev => prev.filter(o => o.id !== outfitId));
+            setCreatedOutfits(prev => prev.filter(o => o.id !== outfitId));
         }
     };
 
@@ -93,7 +111,7 @@ const SavedOutfits: React.FC = () => {
         if (!outfitToRename) return;
         const updatedOutfit = { ...outfitToRename, name: newName };
         await updateSavedOutfit(updatedOutfit);
-        setSavedOutfits(prev => prev.map(o => o.id === updatedOutfit.id ? updatedOutfit : o));
+        setCreatedOutfits(prev => prev.map(o => o.id === updatedOutfit.id ? updatedOutfit : o));
         setOutfitToRename(null);
     };
 
@@ -101,45 +119,62 @@ const SavedOutfits: React.FC = () => {
         if (!user) return;
         try {
             const updatedOutfit = await publishOutfit(outfitId);
-            setSavedOutfits(prev => prev.map(o => o.id === outfitId ? updatedOutfit : o));
-            // Check for social achievement
+            setCreatedOutfits(prev => prev.map(o => o.id === outfitId ? updatedOutfit : o));
             checkAndAwardAchievements(user, { hasShared: true }, updateUser);
         } catch (error) {
             console.error("Failed to share outfit", error);
         }
     };
 
-
-    if (isLoading) {
-        return (
-            <div className="bg-card border border-border p-6 rounded-xl shadow-lg text-center flex items-center justify-center min-h-[200px]">
-                <SpinnerIcon className="w-8 h-8 text-primary mx-auto" />
-            </div>
-        );
-    }
+    const renderContent = () => {
+        if (isLoading) {
+             return (
+                <div className="text-center flex items-center justify-center min-h-[200px]">
+                    <SpinnerIcon className="w-8 h-8 text-primary mx-auto" />
+                </div>
+            );
+        }
+        if (view === 'creations') {
+            return createdOutfits.length > 0 ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {createdOutfits.map(outfit => (
+                        <SavedOutfitCard key={outfit.id} outfit={outfit} onDelete={handleDelete} onRename={setOutfitToRename} onShare={handleShare} />
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-12 border-2 border-dashed border-border/50 rounded-lg">
+                    <p className="text-foreground/70">You haven't saved any outfits yet.</p>
+                    <p className="text-foreground/50 text-sm mt-1">Go to "Daily Style" to generate and save new looks!</p>
+                </div>
+            );
+        }
+        if (view === 'collection') {
+            return collectedOutfits.length > 0 ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {collectedOutfits.map(outfit => (
+                        <CollectedOutfitCard key={outfit.id} outfit={outfit} />
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-12 border-2 border-dashed border-border/50 rounded-lg">
+                    <p className="text-foreground/70">Your collection is empty.</p>
+                    <p className="text-foreground/50 text-sm mt-1">Explore the Community feed to discover and save outfits!</p>
+                </div>
+            );
+        }
+    };
 
     return (
         <>
             <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
-                <h1 className="text-2xl font-bold text-card-foreground mb-6">Saved Outfits</h1>
-                {savedOutfits.length > 0 ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {savedOutfits.map(outfit => (
-                            <SavedOutfitCard 
-                                key={outfit.id} 
-                                outfit={outfit} 
-                                onDelete={handleDelete}
-                                onRename={setOutfitToRename}
-                                onShare={handleShare}
-                            />
-                        ))}
+                <div className="flex justify-between items-center mb-6">
+                    <h1 className="text-2xl font-bold text-card-foreground">Saved Outfits</h1>
+                    <div className="flex items-center text-sm bg-input p-1 rounded-full">
+                        <button onClick={() => setView('creations')} className={`px-4 py-1.5 rounded-full transition-all ${view === 'creations' ? 'bg-card shadow font-semibold' : 'text-foreground/70'}`}>My Creations</button>
+                        <button onClick={() => setView('collection')} className={`px-4 py-1.5 rounded-full transition-all ${view === 'collection' ? 'bg-card shadow font-semibold' : 'text-foreground/70'}`}>My Collection</button>
                     </div>
-                ) : (
-                    <div className="text-center py-12 border-2 border-dashed border-border/50 rounded-lg">
-                        <p className="text-foreground/70">You haven't saved any outfits yet.</p>
-                        <p className="text-foreground/50 text-sm mt-1">Go to "Daily Style" to generate and save new looks!</p>
-                    </div>
-                )}
+                </div>
+                {renderContent()}
             </div>
             {outfitToRename && (
                 <RenameOutfitModal

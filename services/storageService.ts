@@ -1,10 +1,11 @@
-import type { User, ClothingItem, Outfit } from '../types';
+import type { User, ClothingItem, Outfit, Comment } from '../types';
 
 const DB_NAME = 'ChromaDB';
-const DB_VERSION = 3; // Incremented version for schema change
+const DB_VERSION = 4; // Incremented version for schema change
 const USERS_STORE = 'users';
 const ITEMS_STORE = 'items';
 const SAVED_OUTFITS_STORE = 'saved_outfits';
+const COMMENTS_STORE = 'comments';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -53,11 +54,14 @@ const initDB = (): Promise<IDBDatabase> => {
                 savedOutfitsStore.createIndex('userId', 'userId', { unique: false });
                 savedOutfitsStore.createIndex('isPublic', 'isPublic', { unique: false });
             } else {
-                // For upgrades from version 2
                 const savedOutfitsStore = (event.target as IDBOpenDBRequest).transaction?.objectStore(SAVED_OUTFITS_STORE);
                 if (savedOutfitsStore && !savedOutfitsStore.indexNames.contains('isPublic')) {
                      savedOutfitsStore.createIndex('isPublic', 'isPublic', { unique: false });
                 }
+            }
+            if (!db.objectStoreNames.contains(COMMENTS_STORE)) {
+                const commentsStore = db.createObjectStore(COMMENTS_STORE, { keyPath: 'id' });
+                commentsStore.createIndex('outfitId', 'outfitId', { unique: false });
             }
         };
     });
@@ -214,51 +218,40 @@ export const getAllSavedOutfits = async (): Promise<(Outfit & { userId: string }
     return promisifyRequest(store.getAll());
 }
 
-export const getPublicOutfits = async (): Promise<(Outfit & { creator: User })[]> => {
+export const getPublicOutfits = async (page = 1, limit = 9): Promise<{ outfits: (Outfit & { creator: User })[], hasMore: boolean }> => {
     const db = await initDB();
     const transaction = db.transaction([SAVED_OUTFITS_STORE, USERS_STORE, ITEMS_STORE], 'readonly');
     const outfitsStore = transaction.objectStore(SAVED_OUTFITS_STORE);
     const usersStore = transaction.objectStore(USERS_STORE);
-    const itemsStore = transaction.objectStore(ITEMS_STORE);
-
+    
     const publicOutfitsIndex = outfitsStore.index('isPublic');
 
-    // Fire all requests in parallel to keep the transaction alive
-    const outfitsRequest = promisifyRequest(publicOutfitsIndex.getAll(IDBKeyRange.only(true)));
-    const usersRequest = promisifyRequest(usersStore.getAll());
-    const allItemsRequest = promisifyRequest(itemsStore.getAll());
-    
-    const [publicOutfits, users, allItems] = await Promise.all([outfitsRequest, usersRequest, allItemsRequest]);
+    const [publicOutfits, users] = await Promise.all([
+        promisifyRequest(publicOutfitsIndex.getAll(IDBKeyRange.only(true))),
+        promisifyRequest(usersStore.getAll())
+    ]);
     
     const userMap = new Map(users.map(u => [u.id, u]));
-    const itemMap = new Map(allItems.map(i => [i.id, i]));
 
-    const result = publicOutfits
-        .map(outfit => {
-            const creator = userMap.get(outfit.userId);
-            if (!creator) {
-                return null;
-            }
-            
-            const hydratedItems = outfit.items
-                .map(itemStub => itemMap.get(itemStub.id))
-                .filter((item): item is ClothingItem => !!item);
-            
-            // Do not show outfits if their items have been deleted
-            if (hydratedItems.length !== outfit.items.length) {
-                return null;
-            }
+    const hydrated = publicOutfits
+        .map(outfit => ({
+            ...outfit,
+            creator: userMap.get(outfit.userId),
+        }))
+        .filter(o => !!o.creator);
 
-            return {
-                ...outfit,
-                items: hydratedItems,
-                creator,
-            };
-        })
-        .filter((outfit): outfit is (Outfit & { creator: User }) => outfit !== null);
-    
-    return result.sort((a, b) => b.id.localeCompare(a.id)); // Sort by most recent
+    const sorted = hydrated.sort((a, b) => {
+        const scoreA = (a.likes?.length || 0) * 2 - (Date.now() - new Date(parseInt(a.id.split('-')[1])).getTime()) / (1000 * 3600 * 24);
+        const scoreB = (b.likes?.length || 0) * 2 - (Date.now() - new Date(parseInt(b.id.split('-')[1])).getTime()) / (1000 * 3600 * 24);
+        return scoreB - scoreA;
+    });
+
+    const paginatedOutfits = sorted.slice((page - 1) * limit, page * limit);
+    const hasMore = sorted.length > page * limit;
+
+    return { outfits: paginatedOutfits, hasMore };
 };
+
 
 export const addSavedOutfit = async (outfit: Omit<Outfit, 'id' | 'userId'>, userId: string): Promise<Outfit> => {
     const db = await initDB();
@@ -270,7 +263,7 @@ export const addSavedOutfit = async (outfit: Omit<Outfit, 'id' | 'userId'>, user
         id: `saved-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         userId,
         isPublic: false,
-        likes: 0,
+        likes: [],
     };
     await promisifyRequest(store.add(savedOutfit));
     return savedOutfit;
@@ -289,15 +282,23 @@ export const publishOutfit = async (outfitId: string): Promise<Outfit> => {
     throw new Error("Outfit not found");
 };
 
-export const likeOutfit = async (outfitId: string): Promise<number> => {
+export const toggleLikeOutfit = async (outfitId: string, userId: string): Promise<Outfit> => {
     const db = await initDB();
     const transaction = db.transaction(SAVED_OUTFITS_STORE, 'readwrite');
     const store = transaction.objectStore(SAVED_OUTFITS_STORE);
     const outfit = await promisifyRequest(store.get(outfitId));
+
     if (outfit) {
-        outfit.likes = (outfit.likes || 0) + 1;
+        if (!Array.isArray(outfit.likes)) outfit.likes = [];
+        
+        const userLikeIndex = outfit.likes.indexOf(userId);
+        if (userLikeIndex > -1) {
+            outfit.likes.splice(userLikeIndex, 1); // Unlike
+        } else {
+            outfit.likes.push(userId); // Like
+        }
         await promisifyRequest(store.put(outfit));
-        return outfit.likes;
+        return outfit;
     }
     throw new Error("Outfit not found");
 };
@@ -314,6 +315,81 @@ export const updateSavedOutfit = async (outfit: Outfit): Promise<void> => {
     const transaction = db.transaction(SAVED_OUTFITS_STORE, 'readwrite');
     const store = transaction.objectStore(SAVED_OUTFITS_STORE);
     await promisifyRequest(store.put(outfit));
+};
+
+// COMMENT FUNCTIONS
+export const getCommentsByOutfitId = async (outfitId: string): Promise<Comment[]> => {
+    const db = await initDB();
+    const transaction = db.transaction(COMMENTS_STORE, 'readonly');
+    const store = transaction.objectStore(COMMENTS_STORE);
+    const index = store.index('outfitId');
+    return promisifyRequest(index.getAll(outfitId));
+};
+
+export const addComment = async (commentData: Omit<Comment, 'id' | 'createdAt'>): Promise<Comment> => {
+    const db = await initDB();
+    const transaction = db.transaction(COMMENTS_STORE, 'readwrite');
+    const store = transaction.objectStore(COMMENTS_STORE);
+    const newComment: Comment = {
+        ...commentData,
+        id: `comment-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        createdAt: new Date(),
+    };
+    await promisifyRequest(store.add(newComment));
+    return newComment;
+};
+
+// COLLECTION FUNCTIONS
+export const toggleCollectOutfit = async (outfitId: string, userId: string): Promise<User> => {
+    const db = await initDB();
+    const transaction = db.transaction(USERS_STORE, 'readwrite');
+    const store = transaction.objectStore(USERS_STORE);
+    const user = await promisifyRequest(store.get(userId));
+
+    if(user) {
+        if (!Array.isArray(user.collectedOutfitIds)) user.collectedOutfitIds = [];
+        
+        const collectedIndex = user.collectedOutfitIds.indexOf(outfitId);
+        if (collectedIndex > -1) {
+            user.collectedOutfitIds.splice(collectedIndex, 1); // Un-collect
+        } else {
+            user.collectedOutfitIds.push(outfitId); // Collect
+        }
+        await promisifyRequest(store.put(user));
+        return user;
+    }
+    throw new Error("User not found");
+};
+
+export const getHydratedCollectedOutfits = async (userId: string): Promise<(Outfit & { creator: User })[]> => {
+    const db = await initDB();
+    const transaction = db.transaction([USERS_STORE, SAVED_OUTFITS_STORE], 'readonly');
+    const usersStore = transaction.objectStore(USERS_STORE);
+    const outfitsStore = transaction.objectStore(SAVED_OUTFITS_STORE);
+    
+    const user = await promisifyRequest(usersStore.get(userId));
+    if (!user || !user.collectedOutfitIds || user.collectedOutfitIds.length === 0) {
+        return [];
+    }
+
+    const collectedOutfits = await Promise.all(
+        user.collectedOutfitIds.map(id => promisifyRequest(outfitsStore.get(id)))
+    );
+
+    const creatorIds = [...new Set(collectedOutfits.filter(Boolean).map(o => o.userId))];
+    const creators = await Promise.all(
+        creatorIds.map(id => promisifyRequest(usersStore.get(id)))
+    );
+    const creatorMap = new Map(creators.filter(Boolean).map(c => [c.id, c]));
+
+    return collectedOutfits
+        .filter((outfit): outfit is Outfit => !!outfit)
+        .map(outfit => ({
+            ...outfit,
+            creator: creatorMap.get(outfit.userId)!,
+        }))
+        .filter(o => !!o.creator)
+        .sort((a, b) => b.id.localeCompare(a.id));
 };
 
 

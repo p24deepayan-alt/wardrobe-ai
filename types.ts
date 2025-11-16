@@ -19,6 +19,14 @@ export interface ClothingItem {
   purchaseDate: Date;
 }
 
+export interface Comment {
+  id: string;
+  outfitId: string;
+  userId: string;
+  text: string;
+  createdAt: Date;
+}
+
 export interface Outfit {
   id: string;
   name: string;
@@ -27,7 +35,7 @@ export interface Outfit {
   explanation: string;
   userId: string; // The ID of the user who created/saved it
   isPublic?: boolean;
-  likes?: number;
+  likes?: string[]; // Array of user IDs who liked it
 }
 
 export type UserRole = 'user' | 'admin';
@@ -68,6 +76,7 @@ export interface User {
   loginStreak?: number;
   achievements?: string[];
   styleDna?: StyleDNA;
+  collectedOutfitIds?: string[];
 }
 
 export interface ShoppingSuggestion {

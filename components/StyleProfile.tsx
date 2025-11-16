@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import useAuth from '../hooks/useAuth';
 import { CameraIcon, TrashIcon, SpinnerIcon, DnaIcon } from './icons';
 import { achievementsList } from '../services/achievementService';
@@ -84,7 +84,13 @@ const StyleProfile: React.FC = () => {
         }
     };
 
+    const randomModelImageUrl = useMemo(() => {
+        // Adding a timestamp to bust the cache and get a new random image on component mount
+        return `https://source.unsplash.com/500x500/?portrait,fashion,model&t=${Date.now()}`;
+    }, []);
+
     const currentImage = newImage || user?.tryOnImageUrl;
+    const displayImage = currentImage || randomModelImageUrl;
 
     const userAchievements = achievementsList.filter(ach => user?.achievements?.includes(ach.id));
 
@@ -123,15 +129,23 @@ const StyleProfile: React.FC = () => {
 
                 <div className="w-full max-w-sm mx-auto space-y-4">
                     <div className="aspect-square w-full bg-background/50 rounded-lg border-2 border-dashed border-border flex items-center justify-center relative overflow-hidden">
-                        {currentImage ? (
-                            <img src={currentImage} alt="Your profile" className="h-full w-full object-cover" />
+                        {displayImage ? (
+                            <>
+                                <img src={displayImage} alt={currentImage ? "Your profile" : "Example model"} className="h-full w-full object-cover" />
+                                {!currentImage && (
+                                    <div className="absolute bottom-0 left-0 right-0 p-2 bg-black/60 text-center">
+                                        <p className="text-white text-xs font-semibold">Example Model</p>
+                                        <p className="text-white text-[10px]">Upload your photo for a personalized experience.</p>
+                                    </div>
+                                )}
+                            </>
                         ) : (
                             <div className="text-center text-foreground/50 p-4">
                                 <CameraIcon className="w-12 h-12 mx-auto mb-2" />
-                                <p>No Photo Uploaded</p>
+                                <p>Image loading...</p>
                             </div>
                         )}
-                        {isLoading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><SpinnerIcon className="w-8 h-8"/></div>}
+                        {isLoading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><SpinnerIcon className="w-8 h-8 text-white"/></div>}
                     </div>
                     
                     {error && <p className="text-sm text-accent text-center">{error}</p>}
