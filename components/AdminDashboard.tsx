@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import * as apiService from '../services/apiService';
+import { getUsers, getItems, getAllSavedOutfits } from '../services/storageService';
 import type { User, ClothingItem, Outfit } from '../types';
 import { SpinnerIcon, UserIcon, WardrobeIcon, TrendingUpIcon } from './icons';
 import LoginFrequencyChart from './LoginFrequencyChart';
@@ -25,9 +25,9 @@ const AdminDashboard: React.FC = () => {
         const fetchData = async () => {
             try {
                 const [userList, itemList, savedOutfitList] = await Promise.all([
-                    apiService.getUsers(), 
-                    apiService.getItems(),
-                    apiService.getAllSavedOutfits()
+                    getUsers(), 
+                    getItems(),
+                    getAllSavedOutfits()
                 ]);
                 setUsers(userList);
                 setItems(itemList);

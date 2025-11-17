@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getDiscardSuggestions, getShoppingSuggestions, generateOutfitsForSingleItem } from '../services/geminiService';
 import type { ClothingItem, ShoppingSuggestion, Outfit } from '../types';
-import * as apiService from '../services/apiService';
+import { getItemsByUserId, deleteItems, addSavedOutfit, getSavedOutfitsByUserId } from '../services/storageService';
 import useAuth from '../hooks/useAuth';
 import { SpinnerIcon, TrashIcon, TargetIcon, MagicWandIcon } from './icons';
 import SelectItemModal from './SelectItemModal';
@@ -37,8 +37,8 @@ const Enhancements: React.FC = () => {
         const fetchAllData = async () => {
              try {
                 const [wardrobe, saved] = await Promise.all([
-                    apiService.getItemsByUserId(user.id),
-                    apiService.getSavedOutfitsByUserId(user.id)
+                    getItemsByUserId(user.id),
+                    getSavedOutfitsByUserId(user.id)
                 ]);
                 setUserWardrobe(wardrobe);
                 setSavedOutfits(saved);
@@ -87,7 +87,7 @@ const Enhancements: React.FC = () => {
     };
 
     const confirmBulkDelete = async () => {
-        await apiService.deleteItems(selectedForDiscard);
+        await deleteItems(selectedForDiscard);
         setDiscardSuggestions(prev => prev.filter(s => !selectedForDiscard.includes(s.item.id)));
         setUserWardrobe(prev => prev.filter(item => !selectedForDiscard.includes(item.id)));
         setSelectedForDiscard([]);
@@ -126,7 +126,7 @@ const Enhancements: React.FC = () => {
 
         try {
             const { id, ...outfitData } = outfitToSave;
-            const newSavedOutfit = await apiService.addSavedOutfit(outfitData, user.id);
+            const newSavedOutfit = await addSavedOutfit(outfitData, user.id);
             setSavedOutfits(prev => [...prev, newSavedOutfit]);
         } catch (error) {
             console.error("Failed to save outfit:", error);

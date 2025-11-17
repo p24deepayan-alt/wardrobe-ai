@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Outfit, ClothingItem, Weather } from '../types';
 import { generateOutfits } from '../services/geminiService';
-import * as apiService from '../services/apiService';
+import { getItemsByUserId, addSavedOutfit, getSavedOutfitsByUserId } from '../services/storageService';
 import { getWeather } from '../services/weatherService';
 import useAuth from '../hooks/useAuth';
 import { SpinnerIcon, SunIcon, CloudIcon, RainIcon, MagicWandIcon } from './icons';
@@ -35,16 +35,12 @@ const DailyStyle: React.FC = () => {
 
     useEffect(() => {
         if (user) {
-            Promise.all([
-                apiService.getItemsByUserId(user.id),
-                apiService.getSavedOutfitsByUserId(user.id)
-            ]).then(([wardrobe, saved]) => {
-                setUserWardrobe(wardrobe);
-                setSavedOutfits(saved);
-            }).catch(err => {
-                console.error("Failed to load initial data", err);
-                setError("Could not load your data. Please try again.");
-            });
+            getItemsByUserId(user.id)
+                .then(setUserWardrobe)
+                .catch(err => console.error("Failed to load wardrobe", err));
+            getSavedOutfitsByUserId(user.id)
+                .then(setSavedOutfits)
+                .catch(err => console.error("Failed to load saved outfits", err));
         }
     }, [user]);
 
@@ -122,7 +118,7 @@ const DailyStyle: React.FC = () => {
 
         try {
             const { id, ...outfitData } = outfitToSave;
-            const newSavedOutfit = await apiService.addSavedOutfit(outfitData, user.id);
+            const newSavedOutfit = await addSavedOutfit(outfitData, user.id);
             setSavedOutfits(prev => [...prev, newSavedOutfit]);
         } catch (error) {
             console.error("Failed to save outfit:", error);

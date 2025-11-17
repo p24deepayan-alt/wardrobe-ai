@@ -4,19 +4,31 @@ import { ClothingCategory } from '../types';
 import ItemCard from './ItemCard';
 import { PlusIcon, SpinnerIcon, SearchIcon, CloseIcon } from './icons';
 import { analyzeImage } from '../services/geminiService';
-import * as apiService from '../services/apiService';
+import { getItemsByUserId, addItems, updateItem, deleteItem } from '../services/storageService';
 import useAuth from '../hooks/useAuth';
 import EditItemModal from './EditItemModal';
 import { checkAndAwardAchievements } from '../services/achievementService';
+
+
+// Helper to convert file to base64
+const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+    });
+};
 
 interface StagedImage {
     file: File;
     previewUrl: string;
 }
 
-const AddItemModal: React.FC<{ onClose: () => void, onAddItems: (items: { analysis: Partial<ClothingItem>, file: File }[]) => void }> = ({ onClose, onAddItems }) => {
+const AddItemModal: React.FC<{ onClose: () => void, onAddItems: (items: ClothingItem[]) => void }> = ({ onClose, onAddItems }) => {
     const { user } = useAuth();
     const [stagedImages, setStagedImages] = useState<StagedImage[]>([]);
+    const [imageUrl, setImageUrl] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState('');
 
@@ -27,16 +39,42 @@ const AddItemModal: React.FC<{ onClose: () => void, onAddItems: (items: { analys
             e.target.value = ''; 
             try {
                 const newStagedImages = await Promise.all(
-                    files.map(async (file) => ({
-                        file,
-                        previewUrl: URL.createObjectURL(file)
-                    }))
+                    files.map(async (file) => {
+                        const previewUrl = await fileToBase64(file);
+                        return { file, previewUrl };
+                    })
                 );
                 setStagedImages(prev => [...prev, ...newStagedImages]);
             } catch (err) {
                  console.error("Failed to process files:", err);
                  setError(err instanceof Error ? err.message : "Could not process one or more files.");
             }
+        }
+    };
+
+    const handleUrlAdd = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!imageUrl.trim()) return;
+        setIsProcessing(true);
+        setError('');
+        try {
+            new URL(imageUrl); // Basic URL validation
+            const response = await fetch(imageUrl);
+            if (!response.ok) throw new Error(`Failed to fetch image. Status: ${response.status}`);
+            
+            const blob = await response.blob();
+            if (!blob.type.startsWith('image/')) throw new Error('URL does not point to a valid image type.');
+            
+            const fileName = imageUrl.substring(imageUrl.lastIndexOf('/') + 1) || 'pasted-image';
+            const file = new File([blob], fileName, { type: blob.type });
+            const previewUrl = await fileToBase64(file);
+            
+            setStagedImages(prev => [...prev, { file, previewUrl }]);
+            setImageUrl('');
+        } catch (err) {
+            setError(err instanceof Error ? `Invalid URL or failed to fetch image: ${err.message}` : 'An unknown error occurred.');
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -54,14 +92,22 @@ const AddItemModal: React.FC<{ onClose: () => void, onAddItems: (items: { analys
         const analysisPromises = stagedImages.map(img => analyzeImage(img.file));
         const results = await Promise.allSettled(analysisPromises);
         
-        const itemsToProcess: { analysis: Partial<ClothingItem>, file: File }[] = [];
+        const newItems: ClothingItem[] = [];
         const failedItems: string[] = [];
 
         results.forEach((result, index) => {
             if (result.status === 'fulfilled') {
-                itemsToProcess.push({
-                    analysis: result.value,
-                    file: stagedImages[index].file
+                const analysis = result.value;
+                const stagedImage = stagedImages[index];
+                newItems.push({
+                    id: `item-${Date.now()}-${index}`,
+                    userId: user.id,
+                    imageUrl: stagedImage.previewUrl,
+                    purchaseDate: new Date(),
+                    name: analysis.name || 'New Item',
+                    category: analysis.category || ClothingCategory.TOP,
+                    color: analysis.color || 'Unknown',
+                    style: analysis.style || 'Unknown',
                 });
             } else {
                 console.error("Failed to analyze one image:", result.reason);
@@ -69,25 +115,18 @@ const AddItemModal: React.FC<{ onClose: () => void, onAddItems: (items: { analys
             }
         });
 
-        if (itemsToProcess.length > 0) {
-            onAddItems(itemsToProcess);
+        if (newItems.length > 0) {
+            onAddItems(newItems);
         }
 
         if (failedItems.length > 0) {
-            setError(`Successfully added ${itemsToProcess.length} items. Failed to analyze: ${failedItems.join(', ')}.`);
+            setError(`Successfully added ${newItems.length} items. Failed to analyze: ${failedItems.join(', ')}.`);
             setIsProcessing(false);
             setStagedImages(stagedImages.filter(img => !failedItems.includes(img.file.name)));
         } else {
             onClose();
         }
     };
-
-    // Clean up object URLs on unmount
-    useEffect(() => {
-        return () => {
-            stagedImages.forEach(img => URL.revokeObjectURL(img.previewUrl));
-        };
-    }, [stagedImages]);
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
@@ -101,7 +140,16 @@ const AddItemModal: React.FC<{ onClose: () => void, onAddItems: (items: { analys
                             <input type="file" accept="image/*" multiple onChange={handleFileChange} className="hidden"/>
                         </label>
                     </div>
-                   
+                    <div className="flex items-center gap-4">
+                        <hr className="flex-grow border-border"/>
+                        <span className="text-foreground/50 text-sm">OR</span>
+                        <hr className="flex-grow border-border"/>
+                    </div>
+                    <form onSubmit={handleUrlAdd} className="flex gap-2">
+                        <input type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="Paste an image URL" className="flex-grow bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring px-4 py-2"/>
+                        <button type="submit" className="px-4 py-2 bg-input text-foreground rounded-lg hover:bg-border transition-colors" disabled={isProcessing}>Add URL</button>
+                    </form>
+
                     {stagedImages.length > 0 && (
                         <div>
                             <h3 className="text-lg font-semibold mb-2 text-card-foreground">Staged Images ({stagedImages.length})</h3>
@@ -147,17 +195,17 @@ const Wardrobe: React.FC = () => {
     useEffect(() => {
         if (user) {
             setIsLoading(true);
-            apiService.getItemsByUserId(user.id)
+            getItemsByUserId(user.id)
                 .then(setWardrobeItems)
                 .catch(err => console.error("Failed to load wardrobe items", err))
                 .finally(() => setIsLoading(false));
         }
     }, [user]);
 
-    const handleAddItems = async (items: { analysis: Partial<ClothingItem>, file: File }[]) => {
+    const handleAddItems = async (items: ClothingItem[]) => {
         if (!user) return;
-        const addedItems = await apiService.addItems(items, user.id);
-        const newWardrobe = [...addedItems, ...wardrobeItems];
+        await addItems(items);
+        const newWardrobe = [...items, ...wardrobeItems];
         setWardrobeItems(newWardrobe);
 
         // Check for achievements
@@ -165,13 +213,13 @@ const Wardrobe: React.FC = () => {
     };
 
     const handleUpdateItem = async (updated: ClothingItem) => {
-        await apiService.updateItem(updated);
+        await updateItem(updated);
         setWardrobeItems(prev => prev.map(item => item.id === updated.id ? updated : item));
         setSelectedItem(null);
     };
 
     const handleDeleteItem = async (itemId: string) => {
-        await apiService.deleteItem(itemId);
+        await deleteItem(itemId);
         setWardrobeItems(prev => prev.filter(item => item.id !== itemId));
         setSelectedItem(null);
     };

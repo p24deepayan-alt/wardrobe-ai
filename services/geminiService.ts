@@ -11,20 +11,6 @@ const textModel = 'gemini-2.5-flash';
 const proModel = 'gemini-2.5-pro';
 const visionModel = 'gemini-2.5-flash-image';
 
-// Helper to fetch an image URL and convert it to a base64 string
-const imageUrlToBase64 = async (url: string): Promise<string> => {
-    const response = await fetch(url);
-    if (!response.ok) {
-        throw new Error(`Failed to fetch image from URL: ${url}. Status: ${response.status}`);
-    }
-    const blob = await response.blob();
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-    });
-};
 
 const fileToGenerativePart = async (file: File) => {
   const base64EncodedDataPromise = new Promise<string>((resolve) => {
@@ -319,14 +305,10 @@ Each object in the array must have these exact keys: "name", "description", "cat
     }
 };
 
-export const generateVirtualTryOnImage = async (userImageUrl: string, clothingItems: ClothingItem[]): Promise<string> => {
+export const generateVirtualTryOnImage = async (userImageBase64: string, clothingItems: ClothingItem[]): Promise<string> => {
     try {
-        // Fetch and convert all images (user and clothing) from URLs to base64
-        const userImageBase64 = await imageUrlToBase64(userImageUrl);
-        const clothingImageBase64s = await Promise.all(clothingItems.map(item => imageUrlToBase64(item.imageUrl)));
-
         const userImagePart = base64ToGenerativePart(userImageBase64);
-        const clothingParts = clothingImageBase64s.map(b64 => base64ToGenerativePart(b64));
+        const clothingParts = clothingItems.map(item => base64ToGenerativePart(item.imageUrl));
 
         const prompt = `Create a photorealistic image of the person from the first image wearing the clothes from the subsequent images. The person's face, pose, and body shape should be preserved. Place the person on a simple, light gray studio background.`;
         
@@ -344,6 +326,7 @@ export const generateVirtualTryOnImage = async (userImageUrl: string, clothingIt
             },
         });
 
+        // FIX: Explicitly type the response from the Gemini API call.
         const response: GenerateContentResponse = await geminiCallWithBackoff(apiCall);
         
         const firstPart = response.candidates?.[0]?.content?.parts?.[0];
@@ -433,7 +416,7 @@ export const getStyleDnaAnalysis = async (items: ClothingItem[]): Promise<StyleD
     1.  'coreAesthetic': Identify the user's primary style essence. Give it a creative, descriptive title (e.g., "Effortless Parisian Chic", "Modern Minimalist", "Vintage-Inspired Eclectic") and a one-paragraph description explaining this aesthetic based on the items.
     2.  'colorPalette': Determine the user's dominant color palette. Give it a name (e.g., "Warm Earth Tones," "Cool Coastal Hues"), list the top 5-7 representative colors (as color names or hex codes), and write a short description of the palette's mood.
     3.  'keyPieces': Identify up to 4 items that are the cornerstones of their wardrobe. For each, provide the 'itemId' and a 'reason' explaining why it's a key piece (e.g., versatility, unique style statement).
-    4.  'styleGaps': Based on the existing items, identify 2-3 potential gaps. For each, suggest a 'name' for the type of item that's missing (e.g., "A Versatile Blazer", "Classic White Sneakers") and a 'reason' explaining how it would enhance their collection and create more outfit possibilities.
+    4.  'styleGaps': Based on the existing items, identify 2-3 potential gaps. For each gap, suggest a 'name' for the type of item that's missing (e.g., "A Versatile Blazer", "Classic White Sneakers") and a 'reason' explaining how it would enhance their collection and create more outfit possibilities.
 
     Please provide a thoughtful and high-quality analysis.`;
 

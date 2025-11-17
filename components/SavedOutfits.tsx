@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useAuth from '../hooks/useAuth';
 import type { Outfit, User } from '../types';
-import * as apiService from '../services/apiService';
+import { getSavedOutfitsByUserId, deleteSavedOutfit, updateSavedOutfit, publishOutfit, getItemsByUserId, getHydratedCollectedOutfits } from '../services/storageService';
 import ItemCard from './ItemCard';
 import { SpinnerIcon, TrashIcon, PencilIcon, MagicWandIcon, ShareIcon } from './icons';
 import RenameOutfitModal from './RenameOutfitModal';
@@ -76,9 +76,9 @@ const SavedOutfits: React.FC = () => {
         if (user) {
             setIsLoading(true);
             Promise.all([
-                apiService.getSavedOutfitsByUserId(user.id),
-                apiService.getItemsByUserId(user.id),
-                apiService.getHydratedCollectedOutfits(user.id)
+                getSavedOutfitsByUserId(user.id),
+                getItemsByUserId(user.id),
+                getHydratedCollectedOutfits(user.id)
             ])
             .then(([saved, wardrobe, collected]) => {
                 const wardrobeMap = new Map(wardrobe.map(item => [item.id, item]));
@@ -102,7 +102,7 @@ const SavedOutfits: React.FC = () => {
 
     const handleDelete = async (outfitId: string) => {
         if (window.confirm("Are you sure you want to delete this saved outfit?")) {
-            await apiService.deleteSavedOutfit(outfitId);
+            await deleteSavedOutfit(outfitId);
             setCreatedOutfits(prev => prev.filter(o => o.id !== outfitId));
         }
     };
@@ -110,7 +110,7 @@ const SavedOutfits: React.FC = () => {
     const handleRenameSave = async (newName: string) => {
         if (!outfitToRename) return;
         const updatedOutfit = { ...outfitToRename, name: newName };
-        await apiService.updateSavedOutfit(updatedOutfit);
+        await updateSavedOutfit(updatedOutfit);
         setCreatedOutfits(prev => prev.map(o => o.id === updatedOutfit.id ? updatedOutfit : o));
         setOutfitToRename(null);
     };
@@ -118,7 +118,7 @@ const SavedOutfits: React.FC = () => {
     const handleShare = async (outfitId: string) => {
         if (!user) return;
         try {
-            const updatedOutfit = await apiService.publishOutfit(outfitId);
+            const updatedOutfit = await publishOutfit(outfitId);
             setCreatedOutfits(prev => prev.map(o => o.id === outfitId ? updatedOutfit : o));
             checkAndAwardAchievements(user, { hasShared: true }, updateUser);
         } catch (error) {

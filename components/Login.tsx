@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import useAuth from '../hooks/useAuth';
 import { MailIcon, LockIcon, UserIcon, SpinnerIcon, LogoIcon } from './icons';
-import * as apiService from '../services/apiService';
+import { getUsers, addUser } from '../services/storageService';
 import type { User } from '../types';
 import ForgotPasswordModal from './ForgotPasswordModal';
 import ThemeSwitcher from './ThemeSwitcher';
@@ -21,10 +21,15 @@ const Login: React.FC = () => {
         setError('');
         setIsLoading(true);
         try {
-            const user = await apiService.login(email, password);
-            login(user);
+            const users = await getUsers();
+            const user = users.find(u => u.email === email && u.password === password);
+            if (user) {
+                login(user);
+            } else {
+                setError('Invalid email or password.');
+            }
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not verify credentials.');
+            setError('Could not verify credentials. Please try again.');
         } finally {
             setIsLoading(false);
         }
@@ -39,17 +44,24 @@ const Login: React.FC = () => {
         setError('');
         setIsLoading(true);
         try {
-            const newUser: Omit<User, 'id'> = {
+            const users = await getUsers();
+            if (users.some(u => u.email === email)) {
+                setError('An account with this email already exists.');
+                setIsLoading(false);
+                return;
+            }
+            const newUser: User = {
+                id: `user-${Date.now()}`,
                 name,
                 email,
                 password, // In a real app, this must be hashed
                 avatarUrl: `https://api.dicebear.com/8.x/initials/svg?seed=${name}`,
                 roles: ['user'],
             };
-            const createdUser = await apiService.signUp(newUser);
-            login(createdUser);
+            await addUser(newUser);
+            login(newUser);
         } catch (err) {
-             setError(err instanceof Error ? err.message : 'Could not create account.');
+             setError('Could not create account. Please try again.');
         } finally {
             setIsLoading(false);
         }

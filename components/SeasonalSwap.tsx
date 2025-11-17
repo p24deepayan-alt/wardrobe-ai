@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import useAuth from '../hooks/useAuth';
-import { getItemsByUserId } from '../services/apiService';
+import { getItemsByUserId } from '../services/storageService';
 import { getSeasonalAnalysis } from '../services/geminiService';
 import type { ClothingItem, SeasonalAnalysis } from '../types';
 import { SpinnerIcon, LeafIcon, MagicWandIcon } from './icons';

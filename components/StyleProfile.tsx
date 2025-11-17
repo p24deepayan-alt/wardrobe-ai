@@ -4,15 +4,23 @@ import { CameraIcon, TrashIcon, SpinnerIcon, DnaIcon } from './icons';
 import { achievementsList } from '../services/achievementService';
 import AchievementBadge from './AchievementBadge';
 import { getStyleDnaAnalysis } from '../services/geminiService';
-import * as apiService from '../services/apiService';
+import { getItemsByUserId } from '../services/storageService';
 import type { ClothingItem } from '../types';
 import StyleDnaReport from './StyleDnaReport';
 
+// Helper to convert file to base64
+const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+    });
+};
 
 const StyleProfile: React.FC = () => {
     const { user, updateUser } = useAuth();
-    const [newImageFile, setNewImageFile] = useState<File | null>(null);
-    const [newImagePreview, setNewImagePreview] = useState<string | null>(null);
+    const [newImage, setNewImage] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     
@@ -23,51 +31,42 @@ const StyleProfile: React.FC = () => {
 
     useEffect(() => {
         if (user) {
-            apiService.getItemsByUserId(user.id).then(setWardrobe);
+            getItemsByUserId(user.id).then(setWardrobe);
         }
     }, [user]);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             setError('');
-            if(file.size > 4 * 1024 * 1024) {
-                setError("Image is too large. Please select a file under 4MB.");
-                return;
+            setIsLoading(true);
+            try {
+                if(file.size > 4 * 1024 * 1024) {
+                    throw new Error("Image is too large. Please select a file under 4MB.");
+                }
+                const base64 = await fileToBase64(file);
+                setNewImage(base64);
+            } catch (err) {
+                 setError(err instanceof Error ? err.message : "Could not process file.");
+            } finally {
+                setIsLoading(false);
             }
-            setNewImageFile(file);
-            setNewImagePreview(URL.createObjectURL(file));
         }
     };
 
     const handleSave = async () => {
-        if (user && newImageFile) {
-            setIsLoading(true);
-            try {
-                const imageUrl = await apiService.updateUserProfileImage(newImageFile, user.id);
-                await updateUser({ ...user, tryOnImageUrl: imageUrl });
-                setNewImageFile(null);
-                setNewImagePreview(null);
-            } catch (err) {
-                setError("Failed to upload image.");
-            } finally {
-                setIsLoading(false);
-            }
+        if (user && newImage) {
+            await updateUser({ ...user, tryOnImageUrl: newImage });
+            setNewImage(null); // Clear the staging area
         }
     };
 
     const handleRemove = async () => {
         if (user) {
-            setIsLoading(true);
-            try {
-                // In a real app, you might want to delete the image from storage as well
-                const { tryOnImageUrl, ...userWithoutImage } = user;
-                await updateUser(userWithoutImage);
-            } catch (err) {
-                setError("Failed to remove image.");
-            } finally {
-                setIsLoading(false);
-            }
+            // Create a new object without the tryOnImageUrl property
+            const { tryOnImageUrl, ...userWithoutImage } = user;
+            await updateUser(userWithoutImage);
         }
     };
     
@@ -84,17 +83,8 @@ const StyleProfile: React.FC = () => {
             setIsDnaLoading(false);
         }
     };
-    
-    // Clean up object URL
-    useEffect(() => {
-        return () => {
-            if (newImagePreview) {
-                URL.revokeObjectURL(newImagePreview);
-            }
-        };
-    }, [newImagePreview]);
 
-    const currentImage = newImagePreview || user?.tryOnImageUrl;
+    const currentImage = newImage || user?.tryOnImageUrl;
 
     const userAchievements = achievementsList.filter(ach => user?.achievements?.includes(ach.id));
 
@@ -151,20 +141,20 @@ const StyleProfile: React.FC = () => {
                             {user?.tryOnImageUrl ? 'Change Photo' : 'Upload Photo'}
                             <input type="file" accept="image/jpeg, image/png" onChange={handleFileChange} className="hidden"/>
                         </label>
-                        {user?.tryOnImageUrl && !newImagePreview && (
+                        {user?.tryOnImageUrl && !newImage && (
                             <button onClick={handleRemove} className="p-2.5 bg-accent/10 text-accent rounded-lg hover:bg-accent/20 transition-colors">
                                 <TrashIcon className="w-5 h-5"/>
                             </button>
                         )}
                     </div>
 
-                    {newImagePreview && (
+                    {newImage && (
                         <div className="flex gap-3">
-                            <button onClick={() => { setNewImageFile(null); setNewImagePreview(null); }} className="flex-1 px-4 py-2.5 bg-input text-foreground rounded-lg hover:bg-border transition-colors">
+                            <button onClick={() => setNewImage(null)} className="flex-1 px-4 py-2.5 bg-input text-foreground rounded-lg hover:bg-border transition-colors">
                                 Cancel
                             </button>
-                            <button onClick={handleSave} disabled={isLoading} className="flex-1 px-4 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition-colors">
-                                {isLoading ? <SpinnerIcon className="w-5 h-5 mx-auto" /> : 'Save Changes'}
+                            <button onClick={handleSave} className="flex-1 px-4 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition-colors">
+                                Save Changes
                             </button>
                         </div>
                     )}

@@ -6,12 +6,10 @@ import Login from './components/Login';
 import UserDashboard from './components/UserDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import Header from './components/Header';
-import * as apiService from './services/apiService';
+import { getSessionUser, setSessionUser, clearSession, updateUser as storageUpdateUser, getUsers } from './services/storageService';
 import { SpinnerIcon } from './components/icons';
 import LandingPage from './components/LandingPage';
 import { ThemeProvider } from './context/ThemeContext';
-// FIX: The `onAuthStateChanged` is a method on the auth object in Firebase v8, not a separate import.
-import { auth } from './services/firebase';
 
 const AppContent: React.FC = () => {
     const { user, role, isLoading } = useAuth();
@@ -42,30 +40,23 @@ const App: React.FC = () => {
     const [user, setUser] = useState<User | null>(null);
     const [role, setRole] = useState<UserRole>('user');
     const [isLoading, setIsLoading] = useState(true);
-    const [isFirstVisit, setFirstVisit] = useState(!localStorage.getItem('chroma_has_visited') && !sessionStorage.getItem('hasVisited'));
+    const [isFirstVisit, setFirstVisit] = useState(!sessionStorage.getItem('hasVisited'));
 
     useEffect(() => {
-        // FIX: Use the namespaced `auth.onAuthStateChanged` method for Firebase v8 syntax.
-        const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
-            try {
-                if (firebaseUser) {
-                    // User is signed in, get their profile from Firestore
-                    const userProfile = await apiService.getProfile(firebaseUser.uid);
-                    setUser(userProfile);
-                    setRole(userProfile.roles.includes('admin') ? 'admin' : 'user');
-                } else {
-                    // User is signed out
-                    setUser(null);
-                }
-            } catch (error) {
-                console.error("Auth state change error:", error);
-                setUser(null);
-            } finally {
-                setIsLoading(false);
-            }
-        });
+        // Prime the DB connection on startup
+        getUsers();
         
-        return () => unsubscribe(); // Cleanup subscription on unmount
+        try {
+            const sessionUser = getSessionUser();
+            if (sessionUser) {
+                setUser(sessionUser);
+                setRole(sessionUser.roles.includes('admin') ? 'admin' : sessionUser.roles.includes('user') ? 'user' : 'user');
+            }
+        } catch (error) {
+            console.error("Failed to load session:", error);
+        } finally {
+            setIsLoading(false);
+        }
     }, []);
     
     const handleGetStarted = () => {
@@ -73,18 +64,50 @@ const App: React.FC = () => {
         setFirstVisit(false);
     };
     
-    const login = (loggedInUser: User) => {
-        setUser(loggedInUser);
-        setRole(loggedInUser.roles.includes('admin') ? 'admin' : 'user');
-        sessionStorage.setItem('hasVisited', 'true');
-        localStorage.setItem('chroma_has_visited', 'true');
-        setFirstVisit(false);
+    const isSameDay = (d1: Date, d2: Date) => {
+        return d1.getFullYear() === d2.getFullYear() &&
+               d1.getMonth() === d2.getMonth() &&
+               d1.getDate() === d2.getDate();
     };
 
-    const logout = async () => {
-        await apiService.logout();
+    const isYesterday = (d1: Date, d2: Date) => {
+        const yesterday = new Date(d2);
+        yesterday.setDate(yesterday.getDate() - 1);
+        return isSameDay(d1, yesterday);
+    };
+
+    const login = (loggedInUser: User) => {
+        const today = new Date();
+        let currentStreak = loggedInUser.loginStreak || 0;
+
+        // Check if the last login was yesterday to continue the streak
+        if (loggedInUser.lastLogin && isYesterday(new Date(loggedInUser.lastLogin), today)) {
+            currentStreak += 1;
+        } 
+        // If last login was not today or yesterday, reset streak
+        else if (!loggedInUser.lastLogin || !isSameDay(new Date(loggedInUser.lastLogin), today)) {
+            currentStreak = 1;
+        }
+        // If last login was today, streak remains the same.
+        
+        const userWithLoginData: User = {
+            ...loggedInUser,
+            lastLogin: today,
+            loginHistory: [...(loggedInUser.loginHistory || []), today].slice(-100), // Keep last 100 logins
+            loginStreak: currentStreak,
+        };
+
+        setUser(userWithLoginData);
+        setRole('user');
+        setSessionUser(userWithLoginData);
+        storageUpdateUser(userWithLoginData); // Persist changes
+    };
+
+    const logout = () => {
         setUser(null);
-        setFirstVisit(true); // Or based on whether they want a landing page after logout
+        clearSession();
+        sessionStorage.removeItem('hasVisited');
+        setFirstVisit(true);
     };
 
     const switchRole = (newRole: UserRole) => {
@@ -94,8 +117,9 @@ const App: React.FC = () => {
     };
     
     const updateUser = async (updatedUser: User) => {
-        const userInState = await apiService.updateUser(updatedUser);
-        setUser(userInState);
+        setUser(updatedUser);
+        setSessionUser(updatedUser); // Keep session in sync
+        await storageUpdateUser(updatedUser);
     }
 
     const authContextValue = useMemo(() => ({
@@ -110,7 +134,7 @@ const App: React.FC = () => {
 
     return (
         <ThemeProvider>
-            {isFirstVisit && !user ? (
+            {isFirstVisit ? (
                 <LandingPage onGetStarted={handleGetStarted} />
             ) : (
                 <AuthContext.Provider value={authContextValue}>
