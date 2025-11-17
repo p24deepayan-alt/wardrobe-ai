@@ -47,7 +47,7 @@ const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({ outfit, onClose }
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
             <div className="bg-card/80 backdrop-blur-xl border border-border rounded-2xl shadow-xl p-6 w-full max-w-md animate-slideInUp">
-                <h2 className="text-xl font-bold mb-4 text-card-foreground flex items-center">
+                <h2 className="text-2xl font-serif font-bold mb-4 text-card-foreground flex items-center">
                     <SparklesIcon className="w-6 h-6 mr-2 text-secondary" />
                     Virtual Try-On
                 </h2>

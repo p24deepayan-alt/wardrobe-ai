@@ -38,7 +38,7 @@ const EditItemModal: React.FC<EditItemModalProps> = ({ item, onClose, onSave, on
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
             <div className="bg-card/80 backdrop-blur-xl border border-border rounded-2xl shadow-xl p-6 w-full max-w-lg relative animate-slideInUp">
                 <form onSubmit={handleSave}>
-                    <h2 className="text-xl font-bold mb-4 text-card-foreground">Edit Item</h2>
+                    <h2 className="text-2xl font-serif font-bold mb-4 text-card-foreground">Edit Item</h2>
                     <div className="flex flex-col md:flex-row gap-6">
                         <img src={item.imageUrl} alt={item.name} className="w-full md:w-1/3 h-64 object-cover rounded-lg"/>
                         <div className="flex-grow space-y-4">

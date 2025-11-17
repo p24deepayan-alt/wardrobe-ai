@@ -48,7 +48,7 @@ const StyleDnaReport: React.FC<StyleDnaReportProps> = ({ dna, wardrobe, onReanal
                     <div className="flex items-start">
                         <DnaIcon className="w-6 h-6 mr-4 text-primary flex-shrink-0 mt-0.5" />
                         <div>
-                            <h3 className="font-bold text-lg text-primary">{dna.coreAesthetic.title || 'Your Core Aesthetic'}</h3>
+                            <h3 className="font-serif font-bold text-lg text-primary">{dna.coreAesthetic.title || 'Your Core Aesthetic'}</h3>
                             {dna.coreAesthetic.description && <p className="text-sm text-foreground/90">{dna.coreAesthetic.description}</p>}
                         </div>
                     </div>
@@ -58,7 +58,7 @@ const StyleDnaReport: React.FC<StyleDnaReportProps> = ({ dna, wardrobe, onReanal
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {dna.colorPalette && (
                     <div className="bg-background/50 p-4 rounded-lg border border-border">
-                        <h4 className="font-bold text-md text-card-foreground mb-2">{dna.colorPalette.name || 'Your Color Palette'}</h4>
+                        <h4 className="font-serif font-bold text-md text-card-foreground mb-2">{dna.colorPalette.name || 'Your Color Palette'}</h4>
                         {Array.isArray(dna.colorPalette.colors) && (
                              <div className="flex flex-wrap gap-2 mb-2">
                                 {dna.colorPalette.colors.map((color, index) => (
@@ -71,7 +71,7 @@ const StyleDnaReport: React.FC<StyleDnaReportProps> = ({ dna, wardrobe, onReanal
                 )}
                 {Array.isArray(dna.styleGaps) && dna.styleGaps.length > 0 && (
                     <div className="bg-background/50 p-4 rounded-lg border border-border">
-                         <h4 className="font-bold text-md text-card-foreground mb-2">Style Gaps</h4>
+                         <h4 className="font-serif font-bold text-md text-card-foreground mb-2">Style Gaps</h4>
                          <ul className="space-y-2">
                             {dna.styleGaps.map((gap, index) => gap && gap.name && (
                                  <li key={index} className="text-sm">
@@ -86,7 +86,7 @@ const StyleDnaReport: React.FC<StyleDnaReportProps> = ({ dna, wardrobe, onReanal
 
             {keyItems.length > 0 && (
                  <div>
-                     <h4 className="font-bold text-md text-card-foreground mb-3">Key Pieces</h4>
+                     <h4 className="font-serif font-bold text-md text-card-foreground mb-3">Key Pieces</h4>
                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {keyItems.map(({ item, reason }) => item && (
                             <div key={item.id}>

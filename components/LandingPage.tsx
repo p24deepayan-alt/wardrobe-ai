@@ -19,13 +19,12 @@ const FeatureCard: React.FC<{ icon: React.ReactNode; title: string; children: Re
 const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     return (
         <div className="min-h-screen bg-background text-foreground animate-fadeIn">
-            <div className="absolute inset-0 h-full w-full bg-transparent bg-[radial-gradient(#555_1px,transparent_1px)] [background-size:32px_32px]"></div>
             
-            <header className="relative z-10 p-4">
+            <header className="sticky top-0 z-10 p-4 bg-background/80 backdrop-blur-sm border-b border-border/50">
                 <div className="max-w-6xl mx-auto flex justify-between items-center">
                     <div className="flex items-center space-x-2">
                         <LogoIcon className="h-8 w-8 text-primary" />
-                        <span className="text-xl font-bold">Chroma</span>
+                        <span className="text-2xl font-serif font-bold">Chroma</span>
                     </div>
                     <div className="flex items-center space-x-4">
                         <ThemeSwitcher />
@@ -36,12 +35,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                 </div>
             </header>
 
-            <main className="relative z-10">
+            <main className="relative z-0">
                 <section className="text-center py-20 px-4">
-                    <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-r from-primary via-secondary to-primary">
+                    <h1 className="font-serif font-bold text-5xl md:text-7xl tracking-tight mb-4 text-foreground">
                         Rediscover Your Style.
                     </h1>
-                    <p className="max-w-2xl mx-auto text-lg md:text-xl text-foreground/80 mb-8">
+                    <p className="max-w-3xl mx-auto text-lg md:text-xl text-foreground/80 mb-8">
                         Your personal fashion assistant, powered by AI. Effortlessly catalog your wardrobe, get daily outfit recommendations, and enhance your look.
                     </p>
                     <button onClick={onGetStarted} className="px-8 py-4 bg-primary text-primary-foreground font-bold rounded-lg shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all transform active:scale-95 text-lg">
@@ -49,9 +48,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     </button>
                 </section>
 
-                <section className="py-20 px-4 bg-background">
+                <section className="py-20 px-4">
                     <div className="max-w-6xl mx-auto">
-                        <h2 className="text-3xl font-bold text-center mb-12">How It Works</h2>
+                        <h2 className="text-4xl font-serif font-bold text-center mb-12">How It Works</h2>
                         <div className="grid md:grid-cols-3 gap-8">
                             <FeatureCard icon={<WardrobeIcon className="w-6 h-6"/>} title="1. Analyze & Catalog">
                                 Simply upload photos of your clothes. Our AI analyzes each item, automatically categorizing it by type, color, and style.

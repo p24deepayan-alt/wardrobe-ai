@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { Outfit, User, Comment as CommentType, ClothingItem } from '../types';
-import { getPublicOutfits, toggleLikeOutfit, getCommentsByOutfitId, addComment, toggleCollectOutfit, getUsers } from '../services/storageService';
+import type { Outfit, User, Comment as CommentType } from '../types';
+import * as apiService from '../services/apiService';
 import useAuth from '../hooks/useAuth';
 import { SpinnerIcon, HeartIcon, CommentIcon, SendIcon, BookmarkIcon } from './icons';
 import ItemCard from './ItemCard';
@@ -9,34 +9,23 @@ import ItemCard from './ItemCard';
 type HydratedComment = CommentType & { user: User };
 type PublicOutfit = Outfit & { creator: User };
 
-// --- TIME FORMATTER ---
-const timeSince = (date: Date): string => {
-    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-    let interval = seconds / 31536000;
-    if (interval > 1) return Math.floor(interval) + "y";
-    interval = seconds / 2592000;
-    if (interval > 1) return Math.floor(interval) + "m";
-    interval = seconds / 86400;
-    if (interval > 1) return Math.floor(interval) + "d";
-    interval = seconds / 3600;
-    if (interval > 1) return Math.floor(interval) + "h";
-    interval = seconds / 60;
-    if (interval > 1) return Math.floor(interval) + "min";
-    return Math.floor(seconds) + "s";
-};
-
 // --- COMMENT SECTION COMPONENT ---
 const CommentSection: React.FC<{ outfitId: string }> = ({ outfitId }) => {
     const { user: currentUser } = useAuth();
     const [comments, setComments] = useState<HydratedComment[]>([]);
     const [newComment, setNewComment] = useState('');
     const [isLoading, setIsLoading] = useState(true);
+    const [users, setUsers] = useState<User[]>([]);
+
+    useEffect(() => {
+        apiService.getUsers().then(setUsers);
+    }, []);
 
     useEffect(() => {
         const fetchComments = async () => {
+            if (users.length === 0) return;
             setIsLoading(true);
-            const fetchedComments = await getCommentsByOutfitId(outfitId);
-            const users = await getUsers();
+            const fetchedComments = await apiService.getCommentsByOutfitId(outfitId);
             const userMap = new Map(users.map(u => [u.id, u]));
             const hydrated = fetchedComments
                 .map(c => ({...c, user: userMap.get(c.userId)}))
@@ -46,7 +35,7 @@ const CommentSection: React.FC<{ outfitId: string }> = ({ outfitId }) => {
             setIsLoading(false);
         };
         fetchComments();
-    }, [outfitId]);
+    }, [outfitId, users]);
 
     const handleAddComment = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -63,7 +52,7 @@ const CommentSection: React.FC<{ outfitId: string }> = ({ outfitId }) => {
         setNewComment('');
 
         try {
-            const savedComment = await addComment({ outfitId, userId: currentUser.id, text: optimisticComment.text });
+            const savedComment = await apiService.addComment({ outfitId, userId: currentUser.id, text: optimisticComment.text });
             setComments(prev => prev.map(c => c.id === optimisticComment.id ? { ...optimisticComment, ...savedComment } : c));
         } catch (error) {
             console.error("Failed to post comment:", error);
@@ -120,7 +109,7 @@ const PublicOutfitCard: React.FC<{
         
         onUpdateOutfit({ ...outfit, likes: optimisticLikes });
         try {
-            await toggleLikeOutfit(outfit.id, currentUser.id);
+            await apiService.toggleLikeOutfit(outfit.id, currentUser.id);
         } catch (error) {
             console.error("Failed to toggle like:", error);
             onUpdateOutfit(outfit); // Revert on error
@@ -131,7 +120,7 @@ const PublicOutfitCard: React.FC<{
         if (!currentUser) return;
         // This action updates the user object, not the outfit object.
         // We'll optimistically update the UI by calling updateUser from the parent.
-        const updatedUser = await toggleCollectOutfit(outfit.id, currentUser.id);
+        const updatedUser = await apiService.toggleCollectOutfit(outfit.id, currentUser.id);
         onUserUpdate(updatedUser);
     };
 
@@ -183,7 +172,6 @@ const CommunityFeed: React.FC = () => {
     const [error, setError] = useState('');
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
-    // Fix: Correctly initialize useRef with a type that can be null, and an initial value of null.
     const observer = useRef<IntersectionObserver | null>(null);
 
     const lastOutfitElementRef = useCallback(node => {
@@ -202,7 +190,7 @@ const CommunityFeed: React.FC = () => {
             setIsLoading(true);
             setError('');
             try {
-                const { outfits: publicOutfits, hasMore: newHasMore } = await getPublicOutfits(page);
+                const { outfits: publicOutfits, hasMore: newHasMore } = await apiService.getPublicOutfits(page);
                 setOutfits(prev => page === 1 ? publicOutfits : [...prev, ...publicOutfits]);
                 setHasMore(newHasMore);
             } catch (err) {
@@ -212,7 +200,10 @@ const CommunityFeed: React.FC = () => {
                 setIsLoading(false);
             }
         };
-        fetchOutfits();
+        if(hasMore || page === 1) {
+             fetchOutfits();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [page]);
     
     const handleUpdateOutfit = (updatedOutfit: PublicOutfit) => {
@@ -233,7 +224,7 @@ const CommunityFeed: React.FC = () => {
 
     return (
         <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
-            <h1 className="text-2xl font-bold text-card-foreground mb-2">Style Feed</h1>
+            <h1 className="text-3xl font-serif font-bold text-card-foreground mb-2">Style Feed</h1>
             <p className="text-foreground/70 mb-6">Discover and get inspired by outfits from the Chroma community.</p>
 
             {outfits.length > 0 ? (

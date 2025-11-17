@@ -9,7 +9,7 @@ const LoginFrequencyChart: React.FC<LoginFrequencyChartProps> = ({ loginData }) 
 
   return (
     <div className="bg-background/50 p-6 rounded-lg border border-border h-full">
-        <h3 className="text-lg font-bold text-card-foreground mb-4">Logins This Week</h3>
+        <h3 className="text-lg font-serif font-bold text-card-foreground mb-4">Logins This Week</h3>
         <div className="flex justify-between items-end h-48 space-x-2">
             {loginData.map(({ date, count }) => (
                 <div key={date} className="flex-1 flex flex-col items-center justify-end group">

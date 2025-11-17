@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getDiscardSuggestions, getShoppingSuggestions, generateOutfitsForSingleItem } from '../services/geminiService';
 import type { ClothingItem, ShoppingSuggestion, Outfit } from '../types';
-import { getItemsByUserId, deleteItems, addSavedOutfit, getSavedOutfitsByUserId } from '../services/storageService';
+import * as apiService from '../services/apiService';
 import useAuth from '../hooks/useAuth';
 import { SpinnerIcon, TrashIcon, TargetIcon, MagicWandIcon } from './icons';
 import SelectItemModal from './SelectItemModal';
@@ -37,8 +37,8 @@ const Enhancements: React.FC = () => {
         const fetchAllData = async () => {
              try {
                 const [wardrobe, saved] = await Promise.all([
-                    getItemsByUserId(user.id),
-                    getSavedOutfitsByUserId(user.id)
+                    apiService.getItemsByUserId(user.id),
+                    apiService.getSavedOutfitsByUserId(user.id)
                 ]);
                 setUserWardrobe(wardrobe);
                 setSavedOutfits(saved);
@@ -87,7 +87,7 @@ const Enhancements: React.FC = () => {
     };
 
     const confirmBulkDelete = async () => {
-        await deleteItems(selectedForDiscard);
+        await apiService.deleteItems(selectedForDiscard);
         setDiscardSuggestions(prev => prev.filter(s => !selectedForDiscard.includes(s.item.id)));
         setUserWardrobe(prev => prev.filter(item => !selectedForDiscard.includes(item.id)));
         setSelectedForDiscard([]);
@@ -126,7 +126,7 @@ const Enhancements: React.FC = () => {
 
         try {
             const { id, ...outfitData } = outfitToSave;
-            const newSavedOutfit = await addSavedOutfit(outfitData, user.id);
+            const newSavedOutfit = await apiService.addSavedOutfit(outfitData, user.id);
             setSavedOutfits(prev => [...prev, newSavedOutfit]);
         } catch (error) {
             console.error("Failed to save outfit:", error);
@@ -143,7 +143,7 @@ const Enhancements: React.FC = () => {
                 <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
                     <div className="flex items-center mb-2">
                         <TargetIcon className="w-6 h-6 mr-3 text-secondary"/>
-                        <h2 className="text-xl font-bold text-card-foreground">Shop Your Wardrobe</h2>
+                        <h2 className="text-2xl font-serif font-bold text-card-foreground">Shop Your Wardrobe</h2>
                     </div>
                     <p className="text-foreground/70 mb-4">Breathe new life into your closet. Select an item you rarely wear and let our AI create new looks for you.</p>
                     <button onClick={() => setSelectItemOpen(true)} className="px-5 py-2.5 bg-secondary text-secondary-foreground font-semibold rounded-lg shadow-md hover:bg-secondary/90 transition-all transform active:scale-95">
@@ -189,7 +189,7 @@ const Enhancements: React.FC = () => {
                     <>
                         <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
                             <div className="flex justify-between items-center mb-4">
-                                <h2 className="text-xl font-bold text-card-foreground">Time to Refresh</h2>
+                                <h2 className="text-2xl font-serif font-bold text-card-foreground">Time to Refresh</h2>
                                 {selectedForDiscard.length > 0 && (
                                     <button onClick={() => setIsConfirmModalOpen(true)} className="flex items-center px-4 py-2 bg-accent/10 text-accent rounded-lg hover:bg-accent/20 transition-colors text-sm font-semibold">
                                         <TrashIcon className="h-4 w-4 mr-2" />
@@ -211,7 +211,7 @@ const Enhancements: React.FC = () => {
                         </div>
 
                         <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
-                            <h2 className="text-xl font-bold text-card-foreground mb-4">Complete Your Look</h2>
+                            <h2 className="text-2xl font-serif font-bold text-card-foreground mb-4">Complete Your Look</h2>
                             {shoppingSuggestions.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {shoppingSuggestions.map(s => (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getUsers, getItems, getAllSavedOutfits } from '../services/storageService';
+import * as apiService from '../services/apiService';
 import type { User, ClothingItem, Outfit } from '../types';
 import { SpinnerIcon, UserIcon, WardrobeIcon, TrendingUpIcon } from './icons';
 import LoginFrequencyChart from './LoginFrequencyChart';
@@ -25,9 +25,9 @@ const AdminDashboard: React.FC = () => {
         const fetchData = async () => {
             try {
                 const [userList, itemList, savedOutfitList] = await Promise.all([
-                    getUsers(), 
-                    getItems(),
-                    getAllSavedOutfits()
+                    apiService.getUsers(), 
+                    apiService.getItems(),
+                    apiService.getAllSavedOutfits()
                 ]);
                 setUsers(userList);
                 setItems(itemList);
@@ -109,7 +109,7 @@ const AdminDashboard: React.FC = () => {
 
     return (
         <div className="space-y-8">
-            <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
+            <h1 className="text-3xl font-serif font-bold text-foreground">Admin Dashboard</h1>
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -130,7 +130,7 @@ const AdminDashboard: React.FC = () => {
             
             {/* User Table */}
             <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
-                <h2 className="text-xl font-bold text-card-foreground mb-6">All Users</h2>
+                <h2 className="text-xl font-serif font-bold text-card-foreground mb-6">All Users</h2>
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-border">
                         <thead className="bg-background/50">

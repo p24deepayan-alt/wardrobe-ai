@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import useAuth from '../hooks/useAuth';
-import { getItemsByUserId } from '../services/storageService';
+import { getItemsByUserId } from '../services/apiService';
 import { getSeasonalAnalysis } from '../services/geminiService';
 import type { ClothingItem, SeasonalAnalysis } from '../types';
 import { SpinnerIcon, LeafIcon, MagicWandIcon } from './icons';
@@ -63,7 +63,7 @@ const SeasonalSwap: React.FC = () => {
             <div className="w-16 h-16 bg-primary/20 text-primary rounded-xl flex items-center justify-center mx-auto mb-4">
                 <LeafIcon className="w-8 h-8"/>
             </div>
-            <h1 className="text-2xl font-bold text-card-foreground mb-2">Welcome to your {currentSeason} Swap</h1>
+            <h1 className="text-3xl font-serif font-bold text-card-foreground mb-2">Welcome to your {currentSeason} Swap</h1>
             <p className="text-foreground/70 max-w-xl mx-auto mb-6">Let's get your wardrobe ready for the new season. Our AI will analyze your items and suggest what to keep out, what to store away, and what you might be missing.</p>
             {error && <p className="text-accent mb-4">{error}</p>}
             <button
@@ -101,7 +101,7 @@ const SeasonalSwap: React.FC = () => {
         return (
             <div className="space-y-8">
                 <div>
-                    <h1 className="text-2xl font-bold text-card-foreground mb-4">Your {currentSeason} Wardrobe Plan</h1>
+                    <h1 className="text-3xl font-serif font-bold text-card-foreground mb-4">Your {currentSeason} Wardrobe Plan</h1>
                     <div className="p-4 bg-primary/5 rounded-lg border-l-4 border-primary/50">
                        <div className="flex items-start">
                            <MagicWandIcon className="w-5 h-5 mr-3 text-primary flex-shrink-0 mt-0.5" />

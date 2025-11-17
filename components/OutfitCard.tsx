@@ -14,7 +14,7 @@ const OutfitCard: React.FC<OutfitCardProps> = ({ outfit, onTryOn, onSave, isSave
     <div className="bg-background/50 border border-border p-4 rounded-lg">
         <div className="flex justify-between items-start mb-3">
             <div>
-                <h3 className="font-bold text-lg text-card-foreground">{outfit.name}</h3>
+                <h3 className="font-serif font-bold text-lg text-card-foreground">{outfit.name}</h3>
                 <p className="font-normal text-sm text-foreground/80 capitalize">{outfit.occasion}</p>
             </div>
             <div className="flex items-center gap-2">

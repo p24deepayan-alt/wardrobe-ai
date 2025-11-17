@@ -39,8 +39,8 @@ const UserDashboard: React.FC = () => {
       onClick={() => setActiveTab(tabName)}
       className={`relative flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 group ${
         activeTab === tabName
-          ? 'bg-primary/20 text-primary'
-          : 'text-foreground/80 hover:bg-card'
+          ? 'text-primary'
+          : 'text-foreground/80 hover:bg-background'
       }`}
     >
       <span className={`absolute left-0 top-0 h-full w-1 rounded-r-lg bg-primary transition-opacity ${activeTab === tabName ? 'opacity-100' : 'opacity-0'}`}></span>

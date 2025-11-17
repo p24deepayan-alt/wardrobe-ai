@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { GoogleGenAI, Type, Modality, GenerateContentResponse } from "@google/genai";
 import { ClothingCategory } from '../types';
 import type { ClothingItem, Outfit, ShoppingSuggestion, Weather, SeasonalAnalysis, StyleDNA } from '../types';
 
@@ -11,6 +11,20 @@ const textModel = 'gemini-2.5-flash';
 const proModel = 'gemini-2.5-pro';
 const visionModel = 'gemini-2.5-flash-image';
 
+// Helper to fetch an image URL and convert it to a base64 string
+const imageUrlToBase64 = async (url: string): Promise<string> => {
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch image from URL: ${url}. Status: ${response.status}`);
+    }
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+};
 
 const fileToGenerativePart = async (file: File) => {
   const base64EncodedDataPromise = new Promise<string>((resolve) => {
@@ -30,55 +44,82 @@ const base64ToGenerativePart = (base64Data: string, mimeType: string = 'image/jp
 
 const clothingCategories = Object.values(ClothingCategory).join(', ');
 
+const geminiCallWithBackoff = async <T>(apiCall: () => Promise<T>, maxRetries = 3, initialDelay = 1000): Promise<T> => {
+    let attempt = 1;
+    let delay = initialDelay;
+
+    while (attempt <= maxRetries) {
+        try {
+            return await apiCall();
+        } catch (error: any) {
+            // Check for 429 Rate Limit Exceeded error
+            const isRateLimitError = (
+                (error.message && error.message.includes('429')) ||
+                (error.toString && error.toString().includes('429')) ||
+                (error.code === 429) || 
+                (error?.error?.code === 429)
+            );
+            
+            if (isRateLimitError && attempt < maxRetries) {
+                console.warn(`Rate limit exceeded on attempt ${attempt}. Retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                delay *= 2; // Exponential backoff
+                attempt++;
+            } else {
+                // For other errors or if max retries are reached, re-throw the error
+                console.error(`Gemini API call failed on attempt ${attempt}.`, error);
+                throw error;
+            }
+        }
+    }
+    // This line should not be reachable, but is here for type safety
+    throw new Error("Gemini API call failed after multiple retries.");
+};
+
+
 export const analyzeImage = async (file: File): Promise<Partial<ClothingItem>> => {
   const imagePart = await fileToGenerativePart(file);
-  const MAX_ATTEMPTS = 3;
-  let lastError: Error | null = null;
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    const isRetry = attempt > 1;
-    const retryInstruction = isRetry 
-      ? `Your previous attempt returned an invalid category. Please try again. This is attempt ${attempt}.` 
-      : '';
-    const prompt = `${retryInstruction} Analyze the clothing item in the image. Identify its name, color, style (e.g., Casual, Formal, Sporty), and category. The category must be one of the following: ${clothingCategories}. Provide the output as a JSON object.`;
-
-    try {
-        const response = await ai.models.generateContent({
-            model: textModel,
-            contents: { parts: [{text: prompt}, imagePart] },
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        name: { type: Type.STRING, description: 'A descriptive name for the item, e.g., "Blue Denim Jeans".' },
-                        category: { type: Type.STRING, description: `The category of the item. Must be one of: ${clothingCategories}.` },
-                        color: { type: Type.STRING, description: 'The dominant color of the item.' },
-                        style: { type: Type.STRING, description: 'The style of the item, e.g., Casual, Formal, Vintage.' },
-                    }
+  const apiCall = async () => {
+    const prompt = `Analyze the clothing item in the image. Identify its name, color, style (e.g., Casual, Formal, Sporty), and category. The category must be one of the following: ${clothingCategories}. Provide the output as a JSON object.`;
+    // FIX: Explicitly type the response from the Gemini API call.
+    const response: GenerateContentResponse = await ai.models.generateContent({
+        model: visionModel,
+        contents: { parts: [{text: prompt}, imagePart] },
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    name: { type: Type.STRING, description: 'A descriptive name for the item, e.g., "Blue Denim Jeans".' },
+                    category: { type: Type.STRING, description: `The category of the item. Must be one of: ${clothingCategories}.` },
+                    color: { type: Type.STRING, description: 'The dominant color of the item.' },
+                    style: { type: Type.STRING, description: 'The style of the item, e.g., Casual, Formal, Vintage.' },
                 }
             }
-        });
-        
-        const jsonString = response.text;
-        const result = JSON.parse(jsonString) as Partial<ClothingItem>;
-        
-        const validCategories = Object.values(ClothingCategory);
-        if (result.category && validCategories.includes(result.category)) {
-            return result;
-        } else {
-            console.warn(`Attempt ${attempt} failed: Invalid category "${result.category}". Retrying...`);
-            lastError = new Error(`The AI returned an invalid category: "${result.category}".`);
         }
-
-    } catch (error) {
-        console.error(`Error analyzing image with Gemini on attempt ${attempt}:`, error);
-        lastError = error instanceof Error ? error : new Error("An unknown error occurred during image analysis.");
+    });
+    
+    const jsonString = response.text;
+    const result = JSON.parse(jsonString) as Partial<ClothingItem>;
+    
+    const validCategories = Object.values(ClothingCategory);
+    if (result.category && validCategories.includes(result.category)) {
+        return result;
+    } else {
+        throw new Error(`The AI returned an invalid category: "${result.category}".`);
     }
+  };
+  
+  try {
+      return await geminiCallWithBackoff(apiCall, 3);
+  } catch (error) {
+      console.error("All attempts to analyze image failed.", error);
+      const errorMessage = error instanceof Error && error.message.includes('429')
+        ? "The AI service is busy. Please try again in a moment."
+        : "Failed to classify the item. Please try a different image or add the details manually.";
+      throw new Error(errorMessage);
   }
-
-  console.error("All attempts to analyze image failed.");
-  throw new Error(`Failed to classify the item after ${MAX_ATTEMPTS} attempts. Please try a different image or add the item details manually.`);
 };
 
 export interface GeneratedOutfit {
@@ -121,28 +162,30 @@ export const generateOutfits = async (
         prompt = `You are a creative and daring fashion stylist. From the provided wardrobe, create 3 unique and unexpected but stylish outfits. Ignore conventional rules and create something bold and inspiring. Ensure each outfit has a creative name and an appropriate occasion. For each outfit, provide a quirky, fun, and insightful explanation (2-3 sentences) for why the unexpected combination is a fashion-forward statement. Use only the item IDs provided from the wardrobe.
     
     Wardrobe: ${wardrobeData}${historyPrompt}`;
-    } else if (options.weather) {
+    } else {
         const occasionConstraint = options.occasion
             ? `1. The occasion is: "${options.occasion}".`
             : "1. The occasion is for general daily wear. Create versatile and practical outfits.";
+        
+        const weatherConstraint = options.weather
+            ? `2. The weather is: ${options.weather.temperature}°${options.weather.unit} and ${options.weather.condition}.`
+            : "2. No weather information is available; create outfits for temperate conditions.";
         
         prompt = `You are a fashion stylist. Based on the following wardrobe items, create 3 diverse outfits.
   
     Constraints:
     ${occasionConstraint}
-    2. The weather is: ${options.weather.temperature}°${options.weather.unit} and ${options.weather.condition}.
+    ${weatherConstraint}
     3. Combine items based on color theory, style compatibility, and fashion principles, appropriate for the weather and occasion.
     4. Ensure each outfit is practical and stylish. For example, don't suggest shorts in cold weather.
     5. For each outfit, provide a quirky and insightful explanation (2-3 sentences) for why the combination works from a style perspective.
     6. Use only the item IDs provided from the wardrobe.
     
     Wardrobe: ${wardrobeData}${historyPrompt}`;
-    } else {
-        throw new Error("Either 'isSurprise' must be true, or 'weather' must be provided.");
     }
 
     try {
-        const response = await ai.models.generateContent({
+        const apiCall = () => ai.models.generateContent({
             model: textModel,
             contents: prompt,
             config: {
@@ -167,6 +210,8 @@ export const generateOutfits = async (
             }
         });
 
+        // FIX: Explicitly type the response from the Gemini API call.
+        const response: GenerateContentResponse = await geminiCallWithBackoff(apiCall);
         const jsonString = response.text;
         return JSON.parse(jsonString) as GeneratedOutfit[];
 
@@ -183,7 +228,7 @@ export const getDiscardSuggestions = async (items: ClothingItem[]): Promise<{ it
     Wardrobe: ${wardrobeData}`;
 
     try {
-        const response = await ai.models.generateContent({
+        const apiCall = () => ai.models.generateContent({
             model: textModel,
             contents: prompt,
             config: {
@@ -200,6 +245,8 @@ export const getDiscardSuggestions = async (items: ClothingItem[]): Promise<{ it
                 }
             }
         });
+        // FIX: Explicitly type the response from the Gemini API call.
+        const response: GenerateContentResponse = await geminiCallWithBackoff(apiCall);
         const jsonString = response.text;
         return JSON.parse(jsonString);
     } catch (error) {
@@ -212,22 +259,23 @@ export const getShoppingSuggestions = async (items: ClothingItem[], location?: {
     const wardrobeSummary = items.map(i => `${i.name} (${i.category})`).join(', ');
     const locationInfo = location ? `The user is in a region near latitude ${location.latitude}, longitude ${location.longitude}. Tailor suggestions and pricing to this region.` : "The user's location is not specified; assume a major global market like the US.";
     
-    const prompt = `Based on a wardrobe that includes: ${wardrobeSummary}. ${locationInfo}
+    const prompt = `You are a personal shopper AI. Your task is to find 3 real, shoppable items to complement a user's wardrobe using Google Search.
 
-You are an expert personal shopper. Use Google Search to find 3 specific, real clothing items or accessories that would complement this collection and are available for purchase online.
+User's Wardrobe: ${wardrobeSummary}
+User's Location Hint: ${locationInfo}
 
-For each item, provide:
-1.  A descriptive name (e.g., "Everlane The Linen Workwear Shirt").
-2.  A brief description of why it's a good addition.
-3.  A specific category (e.g., 'Shirt', 'Handbag').
-4.  A typical price range, including currency relevant to the user's location (e.g., "$80 - $100 USD", "€50 - €75").
-5.  A direct URL to a retail page where the item can be purchased.
-6.  A direct URL to a high-quality image of the product.
+Your response MUST be a single, valid JSON array of 3 objects. Do NOT include any text, explanation, or markdown formatting outside of the JSON array itself.
 
-Return the result as a valid JSON array of objects. Each object must have keys: "name", "description", "category", "priceRange", "purchaseUrl", "imageUrl".`;
+Each object in the array must have these exact keys: "name", "description", "category", "priceRange", "purchaseUrl", "imageUrl".
+- "name": The product's name.
+- "description": A short reason it complements the wardrobe.
+- "category": The item's category (e.g., 'Shirt').
+- "priceRange": A localized price range (e.g., "$80 - $100 USD").
+- "purchaseUrl": A direct link to a retail page.
+- "imageUrl": A direct link to a product image.`;
 
     try {
-        const response = await ai.models.generateContent({
+        const apiCall = () => ai.models.generateContent({
             model: textModel,
             contents: prompt,
             config: {
@@ -235,12 +283,32 @@ Return the result as a valid JSON array of objects. Each object must have keys: 
             },
         });
 
-        const jsonString = response.text.trim();
-        const cleanedJsonString = jsonString.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+        // FIX: Explicitly type the response from the Gemini API call.
+        const response: GenerateContentResponse = await geminiCallWithBackoff(apiCall);
+        let responseText = response.text.trim();
         
-        const suggestions = JSON.parse(cleanedJsonString);
+        // Attempt to extract JSON from the response text, which might be wrapped in markdown or have leading/trailing text.
+        const markdownMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
+        if (markdownMatch && markdownMatch[1]) {
+            responseText = markdownMatch[1];
+        }
 
-        return suggestions;
+        const startIndex = responseText.indexOf('[');
+        const endIndex = responseText.lastIndexOf(']');
+
+        if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+            const jsonString = responseText.substring(startIndex, endIndex + 1);
+            try {
+                const suggestions = JSON.parse(jsonString);
+                if (Array.isArray(suggestions)) {
+                    return suggestions;
+                }
+            } catch (e) {
+                console.error("Failed to parse extracted JSON string:", e);
+            }
+        }
+        
+        throw new SyntaxError("The AI response did not contain a valid JSON array.");
 
     } catch (error) {
         console.error("Error getting shopping suggestions:", error);
@@ -251,26 +319,32 @@ Return the result as a valid JSON array of objects. Each object must have keys: 
     }
 };
 
-export const generateVirtualTryOnImage = async (userImageBase64: string, clothingItems: ClothingItem[]): Promise<string> => {
+export const generateVirtualTryOnImage = async (userImageUrl: string, clothingItems: ClothingItem[]): Promise<string> => {
     try {
+        // Fetch and convert all images (user and clothing) from URLs to base64
+        const userImageBase64 = await imageUrlToBase64(userImageUrl);
+        const clothingImageBase64s = await Promise.all(clothingItems.map(item => imageUrlToBase64(item.imageUrl)));
+
         const userImagePart = base64ToGenerativePart(userImageBase64);
-        const clothingParts = clothingItems.map(item => base64ToGenerativePart(item.imageUrl));
+        const clothingParts = clothingImageBase64s.map(b64 => base64ToGenerativePart(b64));
 
         const prompt = `Create a photorealistic image of the person from the first image wearing the clothes from the subsequent images. The person's face, pose, and body shape should be preserved. Place the person on a simple, light gray studio background.`;
         
         const allParts = [
-            { text: prompt },
             userImagePart,
             ...clothingParts,
+             { text: prompt },
         ];
-
-        const response = await ai.models.generateContent({
+        
+        const apiCall = () => ai.models.generateContent({
             model: visionModel,
             contents: { parts: allParts },
             config: {
                 responseModalities: [Modality.IMAGE],
             },
         });
+
+        const response: GenerateContentResponse = await geminiCallWithBackoff(apiCall);
         
         const firstPart = response.candidates?.[0]?.content?.parts?.[0];
         if (firstPart && 'inlineData' in firstPart && firstPart.inlineData) {
@@ -306,7 +380,7 @@ export const getSeasonalAnalysis = async (items: ClothingItem[], season: string)
     Provide the output as a single JSON object.`;
 
     try {
-        const response = await ai.models.generateContent({
+        const apiCall = () => ai.models.generateContent({
             model: textModel,
             contents: prompt,
             config: {
@@ -333,7 +407,9 @@ export const getSeasonalAnalysis = async (items: ClothingItem[], season: string)
                 }
             }
         });
-
+        
+        // FIX: Explicitly type the response from the Gemini API call.
+        const response: GenerateContentResponse = await geminiCallWithBackoff(apiCall);
         const jsonString = response.text;
         return JSON.parse(jsonString);
 
@@ -357,12 +433,12 @@ export const getStyleDnaAnalysis = async (items: ClothingItem[]): Promise<StyleD
     1.  'coreAesthetic': Identify the user's primary style essence. Give it a creative, descriptive title (e.g., "Effortless Parisian Chic", "Modern Minimalist", "Vintage-Inspired Eclectic") and a one-paragraph description explaining this aesthetic based on the items.
     2.  'colorPalette': Determine the user's dominant color palette. Give it a name (e.g., "Warm Earth Tones," "Cool Coastal Hues"), list the top 5-7 representative colors (as color names or hex codes), and write a short description of the palette's mood.
     3.  'keyPieces': Identify up to 4 items that are the cornerstones of their wardrobe. For each, provide the 'itemId' and a 'reason' explaining why it's a key piece (e.g., versatility, unique style statement).
-    4.  'styleGaps': Based on the existing items, identify 2-3 potential gaps. For each gap, suggest a 'name' for the type of item that's missing (e.g., "A Versatile Blazer", "Classic White Sneakers") and a 'reason' explaining how it would enhance their collection and create more outfit possibilities.
+    4.  'styleGaps': Based on the existing items, identify 2-3 potential gaps. For each, suggest a 'name' for the type of item that's missing (e.g., "A Versatile Blazer", "Classic White Sneakers") and a 'reason' explaining how it would enhance their collection and create more outfit possibilities.
 
     Please provide a thoughtful and high-quality analysis.`;
 
     try {
-        const response = await ai.models.generateContent({
+        const apiCall = () => ai.models.generateContent({
             model: proModel, // Use the more powerful model for deep analysis
             contents: prompt,
             config: {
@@ -410,6 +486,9 @@ export const getStyleDnaAnalysis = async (items: ClothingItem[]): Promise<StyleD
                 }
             }
         });
+        
+        // FIX: Explicitly type the response from the Gemini API call.
+        const response: GenerateContentResponse = await geminiCallWithBackoff(apiCall);
         const jsonString = response.text;
         return JSON.parse(jsonString);
     } catch (error) {
@@ -440,7 +519,7 @@ export const generateOutfitsForSingleItem = async (
     `;
     
     try {
-        const response = await ai.models.generateContent({
+        const apiCall = () => ai.models.generateContent({
             model: textModel,
             contents: prompt,
             config: {
@@ -464,7 +543,9 @@ export const generateOutfitsForSingleItem = async (
                 }
             }
         });
-
+        
+        // FIX: Explicitly type the response from the Gemini API call.
+        const response: GenerateContentResponse = await geminiCallWithBackoff(apiCall);
         const jsonString = response.text;
         const generatedOutfits = JSON.parse(jsonString) as GeneratedOutfit[];
 

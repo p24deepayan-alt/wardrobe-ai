@@ -1,15 +1,8 @@
 import React from 'react';
 
 export const LogoIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-            <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="hsl(260, 100%, 75%)" />
-                <stop offset="100%" stopColor="hsl(215, 80%, 65%)" />
-            </linearGradient>
-        </defs>
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm3.08 9.59L12 15.67l-3.08-4.08A3.5 3.5 0 0 1 12 5a3.5 3.5 0 0 1 3.08 6.59z" fill="url(#logoGradient)" />
-        <path d="M12 5a3.5 3.5 0 0 0-3.08 6.59L12 15.67l3.08-4.08A3.5 3.5 0 0 0 12 5z" fill="white" opacity="0.1"/>
+    <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm3.08 9.59L12 15.67l-3.08-4.08A3.5 3.5 0 0 1 12 5a3.5 3.5 0 0 1 3.08 6.59z" />
     </svg>
 );
 

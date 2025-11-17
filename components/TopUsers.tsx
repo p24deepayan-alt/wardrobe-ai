@@ -36,7 +36,7 @@ const TopUsers: React.FC<TopUsersProps> = ({ users, userMetrics }) => {
     return (
         <div className="bg-background/50 p-6 rounded-lg border border-border h-full">
             <div className="flex justify-between items-center mb-4">
-                 <h3 className="text-lg font-bold text-card-foreground">Top Users</h3>
+                 <h3 className="text-lg font-serif font-bold text-card-foreground">Top Users</h3>
                  <div className="flex items-center text-sm bg-input p-1 rounded-full">
                     <button onClick={() => setSortBy('wardrobeSize')} className={`px-3 py-1 rounded-full ${sortBy === 'wardrobeSize' ? 'bg-card shadow font-semibold' : ''}`}>Wardrobe</button>
                     <button onClick={() => setSortBy('savedOutfits')} className={`px-3 py-1 rounded-full ${sortBy === 'savedOutfits' ? 'bg-card shadow font-semibold' : ''}`}>Outfits</button>

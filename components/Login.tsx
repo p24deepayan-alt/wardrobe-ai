@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import useAuth from '../hooks/useAuth';
 import { MailIcon, LockIcon, UserIcon, SpinnerIcon, LogoIcon } from './icons';
-import { getUsers, addUser } from '../services/storageService';
+import * as apiService from '../services/apiService';
 import type { User } from '../types';
 import ForgotPasswordModal from './ForgotPasswordModal';
 import ThemeSwitcher from './ThemeSwitcher';
@@ -21,15 +21,10 @@ const Login: React.FC = () => {
         setError('');
         setIsLoading(true);
         try {
-            const users = await getUsers();
-            const user = users.find(u => u.email === email && u.password === password);
-            if (user) {
-                login(user);
-            } else {
-                setError('Invalid email or password.');
-            }
+            const user = await apiService.login(email, password);
+            login(user);
         } catch (err) {
-            setError('Could not verify credentials. Please try again.');
+            setError(err instanceof Error ? err.message : 'Could not verify credentials.');
         } finally {
             setIsLoading(false);
         }
@@ -44,24 +39,17 @@ const Login: React.FC = () => {
         setError('');
         setIsLoading(true);
         try {
-            const users = await getUsers();
-            if (users.some(u => u.email === email)) {
-                setError('An account with this email already exists.');
-                setIsLoading(false);
-                return;
-            }
-            const newUser: User = {
-                id: `user-${Date.now()}`,
+            const newUser: Omit<User, 'id'> = {
                 name,
                 email,
                 password, // In a real app, this must be hashed
                 avatarUrl: `https://api.dicebear.com/8.x/initials/svg?seed=${name}`,
                 roles: ['user'],
             };
-            await addUser(newUser);
-            login(newUser);
+            const createdUser = await apiService.signUp(newUser);
+            login(createdUser);
         } catch (err) {
-             setError('Could not create account. Please try again.');
+             setError(err instanceof Error ? err.message : 'Could not create account.');
         } finally {
             setIsLoading(false);
         }
@@ -71,10 +59,10 @@ const Login: React.FC = () => {
         <>
             <div className="relative flex items-center justify-center min-h-screen bg-background p-4">
                 <ThemeSwitcher className="absolute top-4 right-4" />
-                <div className="w-full max-w-md p-8 space-y-8 bg-card border border-border rounded-2xl shadow-2xl">
+                <div className="w-full max-w-md p-8 space-y-8 bg-card border border-border rounded-2xl shadow-lg">
                     <div className="text-center">
                         <LogoIcon className="w-12 h-12 text-primary mx-auto mb-4" />
-                        <h1 className="text-3xl font-bold text-card-foreground tracking-tight">
+                        <h1 className="text-4xl font-serif font-bold text-card-foreground tracking-tight">
                             {isLoginView ? 'Welcome Back' : 'Create an Account'}
                         </h1>
                         <p className="mt-2 text-foreground/80">
@@ -86,16 +74,16 @@ const Login: React.FC = () => {
                         {!isLoginView && (
                             <div className="relative">
                                 <UserIcon className="w-5 h-5 text-foreground/50 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                                <input type="text" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} required className="w-full pl-12 pr-4 py-3 bg-background/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring" />
+                                <input type="text" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} required className="w-full pl-12 pr-4 py-3 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring" />
                             </div>
                         )}
                          <div className="relative">
                             <MailIcon className="w-5 h-5 text-foreground/50 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                            <input type="email" placeholder="Email Address" value={email} onChange={e => setEmail(e.target.value)} required className="w-full pl-12 pr-4 py-3 bg-background/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring" />
+                            <input type="email" placeholder="Email Address" value={email} onChange={e => setEmail(e.target.value)} required className="w-full pl-12 pr-4 py-3 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring" />
                         </div>
                          <div className="relative">
                             <LockIcon className="w-5 h-5 text-foreground/50 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                            <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required className="w-full pl-12 pr-4 py-3 bg-background/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring" />
+                            <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required className="w-full pl-12 pr-4 py-3 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring" />
                         </div>
                         
                         {isLoginView && (

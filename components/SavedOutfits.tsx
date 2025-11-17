@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useAuth from '../hooks/useAuth';
 import type { Outfit, User } from '../types';
-import { getSavedOutfitsByUserId, deleteSavedOutfit, updateSavedOutfit, publishOutfit, getItemsByUserId, getHydratedCollectedOutfits } from '../services/storageService';
+import * as apiService from '../services/apiService';
 import ItemCard from './ItemCard';
 import { SpinnerIcon, TrashIcon, PencilIcon, MagicWandIcon, ShareIcon } from './icons';
 import RenameOutfitModal from './RenameOutfitModal';
@@ -17,7 +17,7 @@ const SavedOutfitCard: React.FC<{
         <div className="bg-background/50 border border-border p-4 rounded-lg flex flex-col">
             <div className="flex justify-between items-start mb-3">
                 <div>
-                    <h3 className="font-bold text-lg text-card-foreground">{outfit.name}</h3>
+                    <h3 className="font-serif font-bold text-lg text-card-foreground">{outfit.name}</h3>
                     <p className="font-normal text-sm text-foreground/80 capitalize">{outfit.occasion}</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -53,7 +53,7 @@ const CollectedOutfitCard: React.FC<{ outfit: Outfit & { creator: User } }> = ({
         <div className="flex items-center mb-3">
             <img src={outfit.creator.avatarUrl} alt={outfit.creator.name} className="w-8 h-8 rounded-full mr-3" />
             <div>
-                <h3 className="font-bold text-lg text-card-foreground">{outfit.name}</h3>
+                <h3 className="font-serif font-bold text-lg text-card-foreground">{outfit.name}</h3>
                 <p className="text-sm text-foreground/70">by {outfit.creator.name}</p>
             </div>
         </div>
@@ -76,9 +76,9 @@ const SavedOutfits: React.FC = () => {
         if (user) {
             setIsLoading(true);
             Promise.all([
-                getSavedOutfitsByUserId(user.id),
-                getItemsByUserId(user.id),
-                getHydratedCollectedOutfits(user.id)
+                apiService.getSavedOutfitsByUserId(user.id),
+                apiService.getItemsByUserId(user.id),
+                apiService.getHydratedCollectedOutfits(user.id)
             ])
             .then(([saved, wardrobe, collected]) => {
                 const wardrobeMap = new Map(wardrobe.map(item => [item.id, item]));
@@ -102,7 +102,7 @@ const SavedOutfits: React.FC = () => {
 
     const handleDelete = async (outfitId: string) => {
         if (window.confirm("Are you sure you want to delete this saved outfit?")) {
-            await deleteSavedOutfit(outfitId);
+            await apiService.deleteSavedOutfit(outfitId);
             setCreatedOutfits(prev => prev.filter(o => o.id !== outfitId));
         }
     };
@@ -110,7 +110,7 @@ const SavedOutfits: React.FC = () => {
     const handleRenameSave = async (newName: string) => {
         if (!outfitToRename) return;
         const updatedOutfit = { ...outfitToRename, name: newName };
-        await updateSavedOutfit(updatedOutfit);
+        await apiService.updateSavedOutfit(updatedOutfit);
         setCreatedOutfits(prev => prev.map(o => o.id === updatedOutfit.id ? updatedOutfit : o));
         setOutfitToRename(null);
     };
@@ -118,7 +118,7 @@ const SavedOutfits: React.FC = () => {
     const handleShare = async (outfitId: string) => {
         if (!user) return;
         try {
-            const updatedOutfit = await publishOutfit(outfitId);
+            const updatedOutfit = await apiService.publishOutfit(outfitId);
             setCreatedOutfits(prev => prev.map(o => o.id === outfitId ? updatedOutfit : o));
             checkAndAwardAchievements(user, { hasShared: true }, updateUser);
         } catch (error) {
@@ -168,7 +168,7 @@ const SavedOutfits: React.FC = () => {
         <>
             <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
                 <div className="flex justify-between items-center mb-6">
-                    <h1 className="text-2xl font-bold text-card-foreground">Saved Outfits</h1>
+                    <h1 className="text-3xl font-serif font-bold text-card-foreground">Saved Outfits</h1>
                     <div className="flex items-center text-sm bg-input p-1 rounded-full">
                         <button onClick={() => setView('creations')} className={`px-4 py-1.5 rounded-full transition-all ${view === 'creations' ? 'bg-card shadow font-semibold' : 'text-foreground/70'}`}>My Creations</button>
                         <button onClick={() => setView('collection')} className={`px-4 py-1.5 rounded-full transition-all ${view === 'collection' ? 'bg-card shadow font-semibold' : 'text-foreground/70'}`}>My Collection</button>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Outfit, ClothingItem, Weather } from '../types';
 import { generateOutfits } from '../services/geminiService';
-import { getItemsByUserId, addSavedOutfit, getSavedOutfitsByUserId } from '../services/storageService';
+import * as apiService from '../services/apiService';
 import { getWeather } from '../services/weatherService';
 import useAuth from '../hooks/useAuth';
 import { SpinnerIcon, SunIcon, CloudIcon, RainIcon, MagicWandIcon } from './icons';
@@ -35,12 +35,16 @@ const DailyStyle: React.FC = () => {
 
     useEffect(() => {
         if (user) {
-            getItemsByUserId(user.id)
-                .then(setUserWardrobe)
-                .catch(err => console.error("Failed to load wardrobe", err));
-            getSavedOutfitsByUserId(user.id)
-                .then(setSavedOutfits)
-                .catch(err => console.error("Failed to load saved outfits", err));
+            Promise.all([
+                apiService.getItemsByUserId(user.id),
+                apiService.getSavedOutfitsByUserId(user.id)
+            ]).then(([wardrobe, saved]) => {
+                setUserWardrobe(wardrobe);
+                setSavedOutfits(saved);
+            }).catch(err => {
+                console.error("Failed to load initial data", err);
+                setError("Could not load your data. Please try again.");
+            });
         }
     }, [user]);
 
@@ -118,7 +122,7 @@ const DailyStyle: React.FC = () => {
 
         try {
             const { id, ...outfitData } = outfitToSave;
-            const newSavedOutfit = await addSavedOutfit(outfitData, user.id);
+            const newSavedOutfit = await apiService.addSavedOutfit(outfitData, user.id);
             setSavedOutfits(prev => [...prev, newSavedOutfit]);
         } catch (error) {
             console.error("Failed to save outfit:", error);
@@ -138,7 +142,7 @@ const DailyStyle: React.FC = () => {
     return (
         <>
             <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
-                <h1 className="text-2xl font-bold text-card-foreground mb-6">Daily Style Suggestions</h1>
+                <h1 className="text-3xl font-serif font-bold text-card-foreground mb-6">Daily Style Suggestions</h1>
                 
                 <div className="space-y-4 mb-6 p-4 bg-background/50 rounded-lg border border-border">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">

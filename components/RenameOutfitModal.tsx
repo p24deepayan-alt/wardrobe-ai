@@ -19,7 +19,7 @@ const RenameOutfitModal: React.FC<RenameOutfitModalProps> = ({ currentName, onSa
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
             <form onSubmit={handleSubmit} className="bg-card/80 backdrop-blur-xl border border-border rounded-2xl shadow-xl p-6 w-full max-w-md animate-slideInUp">
-                <h2 className="text-xl font-bold mb-4 text-card-foreground">Rename Outfit</h2>
+                <h2 className="text-2xl font-serif font-bold mb-4 text-card-foreground">Rename Outfit</h2>
                 <input
                     type="text"
                     value={name}
